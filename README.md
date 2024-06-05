@@ -1,46 +1,10 @@
-# cfa-repo-template
-A template for new CFA repos
+# cfa-viral-lineage-model
 
-⚠️ This is a work in progress
-
-## How to use this template
-To open a new repo using this template, click the green `Use this template`
-button above and to the right. Then select `Create a new repository`.
-Boilerplate language from [CDCgov GitHub Oroganization Open Source Project Template](https://github.com/cdcgov/template)
-below the horizontal rule should be maintained in the final `README.md` file.
-
-[Guidance about when clearance is needed and how to get it]
-
-## This template contains
-- [x] An Apache 2.0 license
-- [ ] Issue templates for bugs, feature requests, and scientific improvements
-- [ ] A pull request (PR) template
-- [x] CI for linting and styling, following CFA's style guide for R, Python, and Java
-- [x] A .gitignore template that covers R, Python, and Java
-
-## Reminders on CFA collaborative programming practice
-
-* CFA Predict [style guide](https://github.com/cdcent/cfa-predict-documentation/blob/main/docs/style_guide.md)
-* CFA [GitHub workflow](https://github.com/cdcent/cfa-predict-documentation/blob/main/docs/github_workflow.md) for
-* CFA Predict [code review guidance](https://github.com/cdcent/cfa-predict-documentation/blob/main/docs/code_review.md)
-
-## Contributing to the CDCgov repo template
-
-Please refer to [CDC's Template Repository](https://github.com/CDCgov/template)
-for more information about [contributing to that repository](https://github.com/CDCgov/template/blob/master/CONTRIBUTING.md),
-[public domain notices and disclaimers](https://github.com/CDCgov/template/blob/master/DISCLAIMER.md),
-and [code of conduct](https://github.com/CDCgov/template/blob/master/code-of-conduct.md).
-
-------------------------------------------------------------------------------------
-# Your project name
+⚠️ The work in this repository is in progress and highly experimental. ⚠️
 
 ## Overview
 
-Describe the purpose of your project. Add additional sections as necessary to help collaborators and potential collaborators understand and use your project.
-
-## Project Admin
-
-Name, Degrees, e-mail, CDC org (e.g., CDC/IOD/ORR/CFA)
+This repo hosts work on modeling how the composition of viral lineages, such as SARS-CoV-2 Pango lineages, changes over time.
 
 ## General Disclaimer
 This repository was created for use by CDC programs to collaborate on public health related projects in support of the [CDC mission](https://www.cdc.gov/about/organization/mission.htm).  GitHub is not hosted by the CDC, but is a third party website used by CDC and its partners to share information and collaborate on software. CDC use of GitHub does not imply an endorsement of any one particular service, product, or enterprise.
