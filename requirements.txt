@@ -1,3 +1,2 @@
-arviz
 numpyro
 polars
