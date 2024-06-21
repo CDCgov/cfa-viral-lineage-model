@@ -32,7 +32,8 @@ if __name__ == "__main__":
 
     data = (
         load_metadata(url=URL, lineage_column_name="clade_nextstrain")
-        .filter(pl.col("date").str.starts_with("2024-05"))
+        .with_columns(pl.col("date").cast(pl.Date))
+        .filter(pl.col("date") >= pl.col("date").max() - 90)
         .select(["lineage", "date", "count"])
         .pivot(
             index="date",

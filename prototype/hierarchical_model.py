@@ -66,7 +66,8 @@ if __name__ == "__main__":
 
     data = (
         load_metadata(url=URL, lineage_column_name="clade_nextstrain")
-        .filter(pl.col("date").str.starts_with("2024-05"))
+        .with_columns(pl.col("date").cast(pl.Date))
+        .filter(pl.col("date") >= pl.col("date").max() - 90)
         .select(["lineage", "date", "count", "division"])
         .pivot(
             index=["date", "division"],
@@ -84,9 +85,7 @@ if __name__ == "__main__":
     divisions_key, divisions_encoded = np.unique(data["division"], return_inverse=True)
 
     days = data.with_columns(
-        (pl.col("date").cast(pl.Date) - pl.date(2024, 5, 1))
-        .dt.total_days()
-        .alias("day"),
+        (pl.col("date") - pl.col("date").min()).dt.total_days().alias("day"),
     )["day"].to_numpy()
 
     # Infer parameters
@@ -132,10 +131,8 @@ if __name__ == "__main__":
         }
     )
 
-    df = (
-        pl.concat([regional_growth_rates, global_growth_rates])
-        .sort(["iteration", "division", "lineage"])
-        .with_columns(fitness_advantage=((pl.col("growth_rate") * 7).exp() - 1))
+    df = pl.concat([regional_growth_rates, global_growth_rates]).sort(
+        ["iteration", "division", "lineage"]
     )
 
     print(df.write_csv())
