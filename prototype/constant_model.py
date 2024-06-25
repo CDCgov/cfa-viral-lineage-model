@@ -71,4 +71,9 @@ if __name__ == "__main__":
         }
     )
 
+    for delta_t in range(0, 29, 7):
+        df = df.with_columns(pl.col("phi").alias(f"phi_t{delta_t}"))
+
+    df = df.drop("phi")
+
     print(df.write_csv())

@@ -11,7 +11,7 @@ from numpyro.infer import MCMC, NUTS
 numpyro.set_host_device_count(4)
 
 
-def numpyro_model(
+def hierarchical_model(
     counts: np.ndarray,
     divisions: np.ndarray,
     time: np.ndarray,
@@ -100,6 +100,55 @@ def numpyro_model(
     )
 
 
+def independent_divisions_model(
+    counts: np.ndarray,
+    divisions: np.ndarray,
+    time: np.ndarray,
+):
+    """
+    Observations are counts of lineages for each division-day.
+    See https://doi.org/10.1101/2023.01.02.23284123
+
+    counts:         A matrix of counts with shape (num_observations, num_lineages).
+    divisions:      A vector of indices representing the division of each observation.
+    time:           A vector of the time covariate for each observation.
+    """
+
+    num_lineages = counts.shape[1]
+    num_divisions = np.unique(divisions).size
+
+    # beta_0[g, l] is the intercept for lineage l in division g
+    z_0 = numpyro.sample(
+        "z_0",
+        dist.StudentT(2),
+        sample_shape=(num_divisions, num_lineages),
+    )
+    beta_0 = numpyro.deterministic(
+        "beta_0",
+        -5 + 2 * z_0,
+    )
+
+    # beta_1[g, l] is the slope for lineage l in division g
+    z_1 = numpyro.sample(
+        "z_1",
+        dist.Normal(0, 1),
+        sample_shape=(num_divisions, num_lineages),
+    )
+    beta_1 = numpyro.deterministic(
+        "beta_1",
+        -1 + 1.8 * z_1,
+    )
+
+    # z[i, l] is the unnormalized probability of lineage l for observation i
+    z = beta_0[divisions, :] + beta_1[divisions, :] * time[:, None]
+
+    numpyro.sample(
+        "Y",
+        dist.Multinomial(total_count=counts.sum(axis=1), logits=z),
+        obs=counts,
+    )
+
+
 if __name__ == "__main__":
     # Load the data
 
@@ -125,20 +174,23 @@ if __name__ == "__main__":
 
     divisions_key, divisions_encoded = np.unique(data["division"], return_inverse=True)
 
-    time = (
-        data.with_columns(
-            (pl.col("date") - pl.col("date").min()).dt.total_days().alias("day"),
-        )
-        .with_columns((pl.col("day") - pl.col("day").mean()) / pl.col("day").std())[
-            "day"
-        ]
-        .to_numpy()
-    )
+    time = data.with_columns(
+        (pl.col("date") - pl.col("date").min()).dt.total_days().alias("day"),
+    )["day"]
+    time_mean, time_std = time.mean(), time.std()
+    time_standardized = ((time - time_mean) / time_std).to_numpy()
 
     # Infer parameters
 
+    # TODO: This model was designed to have the betas for the most prominent lineage
+    # fixed to 0, for identifiability. This is not implemented here currently
+
+    # b0 = np.zeros((divisions_key.size, counts.shape[1]))
+    # b0[:, 1:] = None
+    # model = numpyro.handlers.condition(numpyro_model, {"beta_0": b0, "beta_1": b0})
+
     mcmc = MCMC(
-        NUTS(numpyro_model),
+        NUTS(independent_divisions_model),
         num_samples=500,
         num_warmup=2500,
         num_chains=4,
@@ -148,15 +200,20 @@ if __name__ == "__main__":
         PRNGKey(0),
         counts.to_numpy(),
         divisions_encoded,
-        time,
+        time_standardized,
+        extra_fields=("potential_energy",),
     )
 
     # Export parameter samples
 
+    beta_0 = np.asarray(mcmc.get_samples(group_by_chain=True)["beta_0"])
     beta_1 = np.asarray(mcmc.get_samples(group_by_chain=True)["beta_1"])
+    potential_energy = np.asarray(
+        mcmc.get_extra_fields(group_by_chain=True)["potential_energy"]
+    )
     n_chains, n_iterations, n_divisions, n_lineages = beta_1.shape
 
-    regional_growth_rates = pl.DataFrame(
+    df = pl.DataFrame(
         {
             "chain": np.repeat(
                 np.arange(n_chains) + 1, n_iterations * n_divisions * n_lineages
@@ -169,27 +226,32 @@ if __name__ == "__main__":
                 np.repeat(divisions_key, n_lineages), n_chains * n_iterations
             ),
             "lineage": np.tile(counts.columns, n_chains * n_iterations * n_divisions),
-            "growth_rate": beta_1.flatten(),
+            "beta_0": beta_0.flatten(),
+            "beta_1": beta_1.flatten(),
         }
+    ).join(
+        pl.DataFrame(
+            {
+                "chain": np.repeat(np.arange(n_chains) + 1, n_iterations),
+                "iteration": np.tile(np.arange(n_iterations) + 1, n_chains),
+                "potential_energy": potential_energy.flatten(),
+            }
+        ),
+        on=["chain", "iteration"],
     )
 
-    mu_beta_1 = np.asarray(mcmc.get_samples(group_by_chain=True)["mu_beta_1"])
-    n_chains, n_iterations, n_lineages = mu_beta_1.shape
+    for delta_t in range(0, 29, 7):
+        t_standardized = (time.max() + delta_t - time_mean) / time_std
 
-    global_growth_rates = pl.DataFrame(
-        {
-            "chain": np.repeat(np.arange(n_chains) + 1, n_iterations * n_lineages),
-            "iteration": np.tile(
-                np.repeat(np.arange(n_iterations) + 1, n_lineages), n_chains
-            ),
-            "division": "[Global]",
-            "lineage": np.tile(counts.columns, n_chains * n_iterations),
-            "growth_rate": mu_beta_1.flatten(),
-        }
-    )
+        df = df.with_columns(
+            (pl.col("beta_0") + pl.col("beta_1") * t_standardized).exp().alias("exp_z")
+        ).with_columns(
+            (
+                pl.col("exp_z")
+                / pl.col("exp_z").sum().over(["chain", "iteration", "division"])
+            ).alias(f"phi_t{delta_t}"),
+        )
 
-    df = pl.concat([regional_growth_rates, global_growth_rates]).sort(
-        ["chain", "iteration", "division", "lineage"]
-    )
+    df = df.drop(["beta_0", "beta_1", "exp_z"])
 
     print(df.write_csv())
