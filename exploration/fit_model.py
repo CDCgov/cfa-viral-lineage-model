@@ -5,7 +5,6 @@ import numpyro
 import numpyro.distributions as dist
 import polars as pl
 from jax.random import PRNGKey
-from load_metadata import load_metadata
 from numpyro.infer import MCMC, NUTS
 
 numpyro.set_host_device_count(4)
@@ -156,11 +155,10 @@ def independent_divisions_model(
 if __name__ == "__main__":
     # Load the data
 
-    URL = "https://data.nextstrain.org/files/ncov/open/north-america/metadata.tsv.xz"
-
     data = (
-        load_metadata(url=URL, lineage_column_name="clade_nextstrain")
-        .with_columns(pl.col("date").cast(pl.Date))
+        pl.read_csv("metadata.csv")
+        .with_columns(pl.col("date").cast(pl.Date, strict=False))
+        .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day
         .filter(pl.col("date") >= pl.col("date").max() - 90)
         .select(["lineage", "date", "count", "division"])
         .pivot(
@@ -194,7 +192,8 @@ if __name__ == "__main__":
     )
 
     mcmc.run(
-        PRNGKey(np.arange(4)),
+        PRNGKey(0),
+        # TODO: PRNGKey(np.arange(4)),
         counts.to_numpy(),
         divisions_encoded,
         time_standardized,
@@ -237,7 +236,7 @@ if __name__ == "__main__":
         on=["chain", "iteration"],
     )
 
-    for delta_t in range(0, 29, 7):
+    for delta_t in range(-30, 15):
         t_standardized = (time.max() + delta_t - time_mean) / time_std
 
         df = df.with_columns(
@@ -246,7 +245,7 @@ if __name__ == "__main__":
             (
                 pl.col("exp_z")
                 / pl.col("exp_z").sum().over(["chain", "iteration", "division"])
-            ).alias(f"phi_t{delta_t}"),
+            ).alias(f"phi_t{delta_t}".replace("-", "m")),
         )
 
     df = df.drop(["beta_0", "beta_1", "exp_z"])

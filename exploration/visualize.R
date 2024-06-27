@@ -10,7 +10,7 @@ samples <- read_csv("output.csv") |>
 		values_to = "phi"
 	) |>
 	mutate(
-		t = as.factor(as.numeric(t))
+		t = str_replace(t, "m", "-") |> as.numeric()
 	) |>
 	# TODO: why are there NAs
 	drop_na()
@@ -38,24 +38,24 @@ summaries <- means |>
 	full_join(quantiles, by = c("division", "t", "lineage")) |>
 	full_join(max_a_posteriori, by = c("division", "t", "lineage"))
 
-summaries |>
-	filter(str_starts(division, "A")) |>
-	ggplot() +
-	geom_ribbon(
-		aes(t, ymin = q_lower, ymax = q_upper, group = lineage, fill = lineage),
-		alpha = 0.15
-	) +
-	geom_line(
-		aes(t, map_phi, group = lineage, color = lineage),
-		linewidth = 1.5
-	) +
-	facet_wrap(vars(division)) +
-	theme_bw(base_size = 20) +
-	ylab(expression(phi))
+# summaries |>
+# 	filter(str_starts(division, "A")) |>
+# 	ggplot() +
+# 	geom_ribbon(
+# 		aes(t, ymin = q_lower, ymax = q_upper, group = lineage, fill = lineage),
+# 		alpha = 0.15
+# 	) +
+# 	geom_line(
+# 		aes(t, map_phi, group = lineage, color = lineage),
+# 		linewidth = 1.5
+# 	) +
+# 	facet_wrap(vars(division)) +
+# 	theme_bw(base_size = 20) +
+# 	ylab(expression(phi))
 
 
-summaries |>
-	filter(str_starts(division, "A")) |>
+p <- summaries |>
+	# filter(str_starts(division, "N")) |>
 	ggplot() +
 	geom_ribbon(
 		aes(t, ymin = q_lower, ymax = q_upper, group = lineage, fill = lineage),
@@ -68,3 +68,5 @@ summaries |>
 	facet_wrap(vars(division)) +
 	theme_bw(base_size = 20) +
 	ylab(expression(phi))
+
+ggsave(p, "output.png", width = 40, height = 30, dpi = 300)
