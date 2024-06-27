@@ -11,12 +11,13 @@ from numpyro.infer import MCMC, NUTS
 numpyro.set_host_device_count(4)
 
 
-def hierarchical_model(
+def hierarchical_divisions_model(
     counts: np.ndarray,
     divisions: np.ndarray,
     time: np.ndarray,
 ):
     """
+    Multinomial regression model with information sharing over divisions.
     Observations are counts of lineages for each division-day.
     See https://doi.org/10.1101/2023.01.02.23284123
     No parameters are constrained here, so specific coefficients are not identifiable.
@@ -107,6 +108,7 @@ def independent_divisions_model(
     time: np.ndarray,
 ):
     """
+    Multinomial regression model assuming independence between divisions.
     Observations are counts of lineages for each division-day.
     See https://doi.org/10.1101/2023.01.02.23284123
     No parameters are constrained here, so specific coefficients are not identifiable.
