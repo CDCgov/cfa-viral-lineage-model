@@ -19,6 +19,7 @@ def hierarchical_model(
     """
     Observations are counts of lineages for each division-day.
     See https://doi.org/10.1101/2023.01.02.23284123
+    No parameters are constrained here, so specific coefficients are not identifiable.
 
     counts:         A matrix of counts with shape (num_observations, num_lineages).
     divisions:      A vector of indices representing the division of each observation.
@@ -108,6 +109,7 @@ def independent_divisions_model(
     """
     Observations are counts of lineages for each division-day.
     See https://doi.org/10.1101/2023.01.02.23284123
+    No parameters are constrained here, so specific coefficients are not identifiable.
 
     counts:         A matrix of counts with shape (num_observations, num_lineages).
     divisions:      A vector of indices representing the division of each observation.
@@ -182,13 +184,6 @@ if __name__ == "__main__":
 
     # Infer parameters
 
-    # TODO: This model was designed to have the betas for the most prominent lineage
-    # fixed to 0, for identifiability. This is not implemented here currently
-
-    # b0 = np.zeros((divisions_key.size, counts.shape[1]))
-    # b0[:, 1:] = None
-    # model = numpyro.handlers.condition(numpyro_model, {"beta_0": b0, "beta_1": b0})
-
     mcmc = MCMC(
         NUTS(independent_divisions_model),
         num_samples=500,
@@ -197,7 +192,7 @@ if __name__ == "__main__":
     )
 
     mcmc.run(
-        PRNGKey(0),
+        PRNGKey(np.arange(4)),
         counts.to_numpy(),
         divisions_encoded,
         time_standardized,
