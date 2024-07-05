@@ -131,29 +131,48 @@ def independent_divisions_model(
     ):
         with numpyro.handlers.reparam(
             config={
-                "beta_0": numpyro.infer.reparam.LocScaleReparam(
-                    centered=0, shape_params=("df",)
-                ),
+                "beta_0": numpyro.infer.reparam.LocScaleReparam(centered=0),
                 "beta_1": numpyro.infer.reparam.LocScaleReparam(centered=0),
             }
         ):
             # beta_0[g, l] is the intercept for lineage l in division g
-            beta_0 = numpyro.sample(
-                "beta_0",
-                dist.StudentT(2, loc=-5, scale=2),
-            )
+            beta_0 = numpyro.sample("beta_0", dist.Normal(0, 3))
 
             # beta_1[g, l] is the slope for lineage l in division g
-            beta_1 = numpyro.sample(
-                "beta_1",
-                dist.Normal(-1, 1.8),
-            )
+            beta_1 = numpyro.sample("beta_1", dist.Normal(0, 3))
+
+    likelihood = multinomial_likelihood(beta_0, beta_1, divisions, time, N)
+
+    # Y[i, l] is the count of lineage l for observation i
+    numpyro.sample("Y", likelihood, obs=counts)
+
+
+def multinomial_likelihood(
+    beta_0: np.ndarray,
+    beta_1: np.ndarray,
+    divisions: np.ndarray,
+    time: np.ndarray,
+    N: np.ndarray | None = None,
+):
+    """
+    Distribution of observations for multinomial regression model for
+    a single human population. Observations are counts of lineages for each
+    time.
+
+    beta_0 (np.ndarray):        Intercept, shape (num_divisions, num_lineages)
+    beta_1 (np.ndarray):        Slope on time, shape (num_divisions, num_lineages)
+    divisions (np.ndarray):     Division index for each observation,
+                                length (num_observations)
+    time (np.ndarray):          Times, length (num_observations)
+    N (np.ndarray):             Total counts across lineages, length (num_observations)
+    """
+
+    # Shape checks
+    assert beta_0.shape == beta_1.shape
+    assert time.shape == divisions.shape == N.shape
 
     # z[i, l] is the unnormalized probability of lineage l for observation i
     z = beta_0[divisions, :] + beta_1[divisions, :] * time[:, None]
+    assert z.shape == (N.shape[0], beta_0.shape[1])
 
-    numpyro.sample(
-        "Y",
-        dist.Multinomial(total_count=N, logits=z),
-        obs=counts,
-    )
+    return dist.Multinomial(total_count=N, logits=z)
