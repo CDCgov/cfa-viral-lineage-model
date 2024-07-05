@@ -1,3 +1,4 @@
 numpyro
 polars
+scipy
 zstandard

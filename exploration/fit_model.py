@@ -6,6 +6,7 @@ import numpy as np
 import numpyro
 import polars as pl
 from numpyro.infer import MCMC, NUTS
+from utils import expand_grid, pl_softmax
 
 numpyro.set_host_device_count(4)
 
@@ -14,98 +15,68 @@ numpyro.set_host_device_count(4)
 
 data = (
     pl.read_csv("metadata.csv")
-    .with_columns(pl.col("date").cast(pl.Date, strict=False))
+    .cast({"date": pl.Date}, strict=False)
     .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day
     .filter(pl.col("date") >= pl.col("date").max() - 90)
     .select(["lineage", "date", "count", "division"])
-    .pivot(
-        index=["date", "division"],
-        on="lineage",
-        values="count",
-    )
+    .pivot(on="lineage", index=["date", "division"], values="count")
     .fill_null(0)
 )
 
 # Extract count matrix, division indices, and time covariate
 
-counts = data.drop(["date", "division"])
-counts = counts.select(sorted(counts.columns))
+counts = data.select(sorted(data.columns)).drop(["date", "division"])
+division_names, divisions = np.unique(data["division"], return_inverse=True)
+time = (data["date"] - data["date"].min()).dt.total_days().to_numpy()
 
-divisions_key, divisions_encoded = np.unique(data["division"], return_inverse=True)
 
-time = data.with_columns(
-    (pl.col("date") - pl.col("date").min()).dt.total_days().alias("day"),
-)["day"]
-time_mean, time_std = time.mean(), time.std()
-time_standardized = ((time - time_mean) / time_std).to_numpy()
+def time_standardizer(t):
+    return (t - time.mean()) / time.std()
+
 
 # Infer parameters
 
+NUM_CHAINS = 4
+NUM_ITERATIONS = 500
+
 mcmc = MCMC(
     NUTS(models.independent_divisions_model),
-    num_samples=500,
+    num_samples=NUM_ITERATIONS,
     num_warmup=2500,
-    num_chains=4,
+    num_chains=NUM_CHAINS,
 )
 
 mcmc.run(
     jax.random.key(0),
-    counts.to_numpy(),
-    divisions_encoded,
-    time_standardized,
-    extra_fields=("potential_energy",),
+    divisions,
+    time_standardizer(time),
+    counts=counts.to_numpy(),
 )
 
 # Collect posterior regression parameter samples
 
-beta_0 = np.asarray(mcmc.get_samples(group_by_chain=True)["beta_0"])
-beta_1 = np.asarray(mcmc.get_samples(group_by_chain=True)["beta_1"])
-potential_energy = np.asarray(
-    mcmc.get_extra_fields(group_by_chain=True)["potential_energy"]
-)
-n_chains, n_iterations, n_divisions, n_lineages = beta_1.shape
-
-df = pl.DataFrame(
-    {
-        "chain": np.repeat(
-            np.arange(n_chains) + 1, n_iterations * n_divisions * n_lineages
-        ),
-        "iteration": np.tile(
-            np.repeat(np.arange(n_iterations) + 1, n_divisions * n_lineages),
-            n_chains,
-        ),
-        "division": np.tile(
-            np.repeat(divisions_key, n_lineages), n_chains * n_iterations
-        ),
-        "lineage": np.tile(counts.columns, n_chains * n_iterations * n_divisions),
-        "beta_0": beta_0.flatten(),
-        "beta_1": beta_1.flatten(),
-    }
-).join(
-    pl.DataFrame(
-        {
-            "chain": np.repeat(np.arange(n_chains) + 1, n_iterations),
-            "iteration": np.tile(np.arange(n_iterations) + 1, n_chains),
-            "potential_energy": potential_energy.flatten(),
-        }
-    ),
-    on=["chain", "iteration"],
+samples = expand_grid(
+    chain=np.arange(NUM_CHAINS) + 1,
+    iteration=np.arange(NUM_ITERATIONS) + 1,
+    division=division_names,
+    lineage=counts.columns,
+).with_columns(
+    beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
+    beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
 )
 
 # Compute posterior samples for population-level lineage proportions
 
 for delta_t in range(-30, 15):
-    t_standardized = (time.max() + delta_t - time_mean) / time_std
+    t = time_standardizer(time.max() + delta_t)
 
-    df = df.with_columns(
-        (pl.col("beta_0") + pl.col("beta_1") * t_standardized).exp().alias("exp_z")
-    ).with_columns(
-        (
-            pl.col("exp_z")
-            / pl.col("exp_z").sum().over(["chain", "iteration", "division"])
+    samples = samples.with_columns(
+        pl_softmax(
+            pl.col("beta_0") + pl.col("beta_1") * t,
+            over=["chain", "iteration", "division"],
         ).alias(f"phi_t{delta_t}".replace("-", "m")),
     )
 
-df = df.drop(["beta_0", "beta_1", "exp_z"])
+samples = samples.drop(["beta_0", "beta_1"])
 
-print(df.write_csv())
+print(samples.write_csv())

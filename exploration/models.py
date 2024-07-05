@@ -95,9 +95,11 @@ def hierarchical_divisions_model(
 
 
 def independent_divisions_model(
-    counts: np.ndarray,
     divisions: np.ndarray,
     time: np.ndarray,
+    counts: np.ndarray | None = None,
+    N: np.ndarray | None = None,
+    num_lineages: int | None = None,
 ):
     """
     Multinomial regression model assuming independence between divisions.
@@ -105,13 +107,27 @@ def independent_divisions_model(
     See https://doi.org/10.1101/2023.01.02.23284123
     No parameters are constrained here, so specific coefficients are not identifiable.
 
-    counts:         A matrix of counts with shape (num_observations, num_lineages).
     divisions:      A vector of indices representing the division of each observation.
     time:           A vector of the time covariate for each observation.
+    counts:         A matrix of counts with shape (num_observations, num_lineages).
+                    Set to `None` to use as a generative model.
+    N:              A vector of total counts (across lineages) for each observation.
+                    Not required if providing observed `counts`.
+    num_lineages:   The number of lineages.
+                    Not required if providing observed `counts`.
+
     """
 
+    if counts is None:
+        assert num_lineages is not None and N is not None
+    else:
+        assert num_lineages is None and N is None
+
+        N = counts.sum(axis=1)
+        num_lineages = counts.shape[1]
+
     with numpyro.plate_stack(
-        "divisions_lineages", (np.unique(divisions).size, counts.shape[1])
+        "division-lineage", (np.unique(divisions).size, num_lineages)
     ):
         with numpyro.handlers.reparam(
             config={
@@ -125,14 +141,12 @@ def independent_divisions_model(
             beta_0 = numpyro.sample(
                 "beta_0",
                 dist.StudentT(2, loc=-5, scale=2),
-                # sample_shape=(num_divisions, num_lineages),
             )
 
             # beta_1[g, l] is the slope for lineage l in division g
             beta_1 = numpyro.sample(
                 "beta_1",
                 dist.Normal(-1, 1.8),
-                # sample_shape=(num_divisions, num_lineages),
             )
 
     # z[i, l] is the unnormalized probability of lineage l for observation i
@@ -140,6 +154,6 @@ def independent_divisions_model(
 
     numpyro.sample(
         "Y",
-        dist.Multinomial(total_count=counts.sum(axis=1), logits=z),
+        dist.Multinomial(total_count=N, logits=z),
         obs=counts,
     )

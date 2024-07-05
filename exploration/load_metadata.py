@@ -42,11 +42,11 @@ def load_metadata(
         pl.scan_csv(save_path, separator="\t")
         .rename({lineage_column_name: "lineage"})
         .filter(
-            (pl.col("country") == "USA")
-            & pl.col("date").is_not_null()
-            & (pl.col("host") == "Homo sapiens")
+            pl.col("date").is_not_null(),
+            country="USA",
+            host="Homo sapiens",
         )
-        .group_by(["lineage", "date", "division"])
+        .group_by("lineage", "date", "division")
         .agg(pl.len().alias("count"))
         .collect()
     )
