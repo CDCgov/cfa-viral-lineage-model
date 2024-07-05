@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 
 # %%
-from functools import reduce
-
 import jax
 import models
 import numpy as np
-import numpyro
 import polars as pl
 from numpyro.infer import MCMC, NUTS, Predictive
 from scipy.special import softmax
@@ -15,12 +12,15 @@ from utils import expand_grid, pl_softmax
 # Load the real data. We will sample new counts
 
 data = (
-    pl.read_csv("metadata.csv")
+    pl.read_csv("data/metadata.csv")
     .cast({"date": pl.Date}, strict=False)
     .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day
     .filter(pl.col("date") >= pl.col("date").max() - 90)
     # TODO: Remove for a more comprehensive sim study
-    .filter(pl.col("lineage").str.starts_with("24"), division="California")
+    .filter(
+        pl.col("lineage").str.starts_with("24"),
+        pl.col("division").is_in(["Arizona", "California", "New York"]),
+    )
     .select("lineage", "date", "count", "division")
     .pivot(on="lineage", index=["date", "division"], values="count")
     .fill_null(0)
@@ -45,7 +45,7 @@ result = prior_predictive(
     jax.random.key(0),
     divisions,
     time_standardizer(time),
-    N=counts.sum_horizontal().to_numpy(),
+    N=counts.sum_horizontal().to_numpy() * 100,
     num_lineages=counts.shape[1],
 )
 true_beta_0 = result["beta_0"][1]
@@ -62,45 +62,38 @@ truth = expand_grid(
 
 # Simulate new observed proportions and attempt to recover parameters
 
-likelihood = numpyro.handlers.condition(
-    Predictive(models.independent_divisions_model, num_samples=100),
-    {
-        # We must condition the unit-scaled parameters,
-        # since we use numpyro's reparam
-        "beta_0_decentered": (true_beta_0 + 5) / 2,
-        "beta_1_decentered": (true_beta_1 + 1) / 1.8,
-    },
-)
-
-sampled_counts_dfs = likelihood(
-    jax.random.key(0),
+likelihood = models.multinomial_likelihood(
+    true_beta_0,
+    true_beta_1,
     divisions,
     time_standardizer(time),
-    N=counts.sum_horizontal().to_numpy(),
-    num_lineages=counts.shape[1],
+    counts.sum_horizontal().to_numpy(),
 )
 
+# %%
+
+NUM_MCMC_ITERATIONS = 500
+NUM_SIM_STUDY_ITERATIONS = 100
+
+keys = jax.random.split(jax.random.key(0), NUM_SIM_STUDY_ITERATIONS)
 samples_dfs = []
 
-for i, sampled_counts in enumerate(sampled_counts_dfs["Y"]):
-    NUM_ITERATIONS = 500
+for i in range(NUM_SIM_STUDY_ITERATIONS):
+    sample_key, run_key = jax.random.split(keys[i], 2)
+
+    sampled_counts = likelihood.sample(sample_key)
 
     mcmc = MCMC(
         NUTS(models.independent_divisions_model),
-        num_samples=NUM_ITERATIONS,
+        num_samples=NUM_MCMC_ITERATIONS,
         num_warmup=500,
     )
 
-    mcmc.run(
-        jax.random.key(i),
-        divisions,
-        time_standardizer(time),
-        counts=sampled_counts,
-    )
+    mcmc.run(run_key, divisions, time_standardizer(time), counts=sampled_counts)
 
     samples = expand_grid(
         sim_study_iteration=[i + 1],
-        mcmc_iteration=np.arange(NUM_ITERATIONS) + 1,
+        mcmc_iteration=np.arange(NUM_MCMC_ITERATIONS) + 1,
         division=division_names,
         lineage=counts.columns,
     ).with_columns(
@@ -110,20 +103,20 @@ for i, sampled_counts in enumerate(sampled_counts_dfs["Y"]):
 
     samples_dfs.append(samples)
 
-posterior_medians = (
-    reduce(lambda x, y: x.vstack(y), samples_dfs)
+# Export posterior samples
+
+(
+    pl.concat(samples_dfs)
     .with_columns(
         phi_time7=pl_softmax(
             pl.col("beta_0") + pl.col("beta_1") * time7,
             over=["sim_study_iteration", "mcmc_iteration", "division"],
         )
     )
-    .group_by("sim_study_iteration", "division", "lineage")
-    .agg(pl.median("phi_time7"))
     .join(truth, on=["division", "lineage"])
-    .sort("sim_study_iteration", "division", "lineage")
+    .sort("sim_study_iteration", "mcmc_iteration", "division", "lineage")
+    .drop("beta_0", "beta_1")
+    .write_csv("out/sim_study.csv")
 )
-
-posterior_medians.write_csv("medians.csv")
 
 # %%
