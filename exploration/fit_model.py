@@ -14,7 +14,7 @@ numpyro.set_host_device_count(4)
 # Load the data
 
 data = (
-    pl.read_csv("metadata.csv")
+    pl.read_csv("data/metadata.csv")
     .cast({"date": pl.Date}, strict=False)
     .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day
     .filter(pl.col("date") >= pl.col("date").max() - 90)
