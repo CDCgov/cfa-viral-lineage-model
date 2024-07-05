@@ -157,3 +157,77 @@ def independent_divisions_model(
         dist.Multinomial(total_count=N, logits=z),
         obs=counts,
     )
+
+
+def one_division_dist(
+    beta_0: np.ndarray,
+    beta_1: np.ndarray,
+    time: np.ndarray,
+    N: np.ndarray | None = None,
+):
+    """
+    Distribution of observations for multinomial regression model for
+    a single human population. Observations are counts of lineages for each
+    time.
+
+    beta_0 (np.ndarray): "intercept", one per lineage
+    beta_1 (np.ndarray): "slope", one per lineage
+    time (np.ndarray): times, one per observation
+    N (np.ndarray): total counts across lineages, one per observation
+    """
+    # all per-lineage parameters should have same length
+    num_lineages = len(beta_0)
+    assert len(beta_1) == num_lineages
+
+    # all per-observation parameters should have same length
+    num_obs = len(time)
+    assert len(N) == num_obs
+
+    # logits should have shape (lineages, observations)
+    z = beta_0[:, np.newaxis] + np.outer(beta_1, time)
+    assert z.shape == (num_lineages, num_obs)
+
+    return dist.Multinomial(total_count=N, logits=z)
+
+
+def one_division_sample(
+    time: np.ndarray, counts: np.ndarray | None = None, var: str = "Y"
+):
+    """
+    Multinomial regression model for a single human population.
+    Observations are counts of lineages for each division-day.
+    See https://doi.org/10.1101/2023.01.02.23284123
+    No parameters are constrained here, so specific coefficients are not identifiable.
+
+    time:           A vector of the time covariate for each observation.
+    counts:         A matrix of counts with shape (num_observations, num_lineages).
+    var (str): Variable name. Default: "Y"
+    """
+
+    N = counts.sum(axis=1)
+    num_lineages = counts.shape[1]
+
+    with numpyro.plate_stack("lineage", num_lineages):
+        with numpyro.handlers.reparam(
+            config={
+                "beta_0": numpyro.infer.reparam.LocScaleReparam(
+                    centered=0, shape_params=("df",)
+                ),
+                "beta_1": numpyro.infer.reparam.LocScaleReparam(centered=0),
+            }
+        ):
+            # beta_0[g, l] is the intercept for lineage l in division g
+            beta_0 = numpyro.sample(
+                "beta_0",
+                dist.StudentT(2, loc=-5, scale=2),
+            )
+
+            # beta_1[g, l] is the slope for lineage l in division g
+            beta_1 = numpyro.sample(
+                "beta_1",
+                dist.Normal(-1, 1.8),
+            )
+
+    obs_dist = one_division_dist(beta_0=beta_0, beta_1=beta_1, time=time, N=N)
+
+    return numpyro.sample(var, obs_dist, obs=counts)

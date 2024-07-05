@@ -37,21 +37,23 @@ def time_standardizer(t):
     return (t - time.mean()) / time.std()
 
 
-# Fix true parameter values
-
-prior_predictive = Predictive(models.independent_divisions_model, num_samples=1)
-
-result = prior_predictive(
-    jax.random.key(0),
-    divisions,
-    time_standardizer(time),
+# Get simulated samples -------------------------------------------------------
+key = jax.random.key(0)
+n_simulated = 10
+true_beta_0 = np.array([-7.2666636, -7.0850706])
+true_beta_1 = np.array([-0.9843274, -1.0879934])
+simulation_dist = models.one_division_dist(
+    beta_0=true_beta_0,
+    beta_1=true_beta_1,
+    time=time_standardizer(time),
     N=counts.sum_horizontal().to_numpy(),
-    num_lineages=counts.shape[1],
 )
-true_beta_0 = result["beta_0"][1]
-true_beta_1 = result["beta_1"][1]
+
+simulated_samples = [simulation_dist.sample(key) for i in range(n_simulated)]
 
 time7 = time_standardizer(time.max() + 7)
+
+assert False
 
 truth = expand_grid(
     division=division_names,
@@ -60,17 +62,6 @@ truth = expand_grid(
     true_phi_time7=softmax(true_beta_0 + true_beta_1 * time7, axis=1).flatten(),
 )
 
-# Simulate new observed proportions and attempt to recover parameters
-
-likelihood = numpyro.handlers.condition(
-    Predictive(models.independent_divisions_model, num_samples=100),
-    {
-        # We must condition the unit-scaled parameters,
-        # since we use numpyro's reparam
-        "beta_0_decentered": (true_beta_0 + 5) / 2,
-        "beta_1_decentered": (true_beta_1 + 1) / 1.8,
-    },
-)
 
 sampled_counts_dfs = likelihood(
     jax.random.key(0),
