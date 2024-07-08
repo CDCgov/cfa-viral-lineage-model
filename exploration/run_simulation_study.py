@@ -39,7 +39,9 @@ def time_standardizer(t):
 
 # Fix true parameter values
 
-prior_predictive = Predictive(models.independent_divisions_model, num_samples=1)
+prior_predictive = Predictive(
+    models.independent_divisions_model, num_samples=1
+)
 
 result = prior_predictive(
     jax.random.key(0),
@@ -57,7 +59,9 @@ truth = expand_grid(
     division=division_names,
     lineage=counts.columns,
 ).with_columns(
-    true_phi_time7=softmax(true_beta_0 + true_beta_1 * time7, axis=1).flatten(),
+    true_phi_time7=softmax(
+        true_beta_0 + true_beta_1 * time7, axis=1
+    ).flatten(),
 )
 
 # Simulate new observed proportions and attempt to recover parameters
@@ -89,7 +93,9 @@ for i in range(NUM_SIM_STUDY_ITERATIONS):
         num_warmup=500,
     )
 
-    mcmc.run(run_key, divisions, time_standardizer(time), counts=sampled_counts)
+    mcmc.run(
+        run_key, divisions, time_standardizer(time), counts=sampled_counts
+    )
 
     samples = expand_grid(
         sim_study_iteration=[i + 1],
