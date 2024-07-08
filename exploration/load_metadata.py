@@ -18,7 +18,9 @@ def load_metadata(
     redownload=False,
 ):
     parsed_url = urlparse(url)
-    save_path = CACHE_DIRECTORY / parsed_url.netloc / parsed_url.path.lstrip("/")
+    save_path = (
+        CACHE_DIRECTORY / parsed_url.netloc / parsed_url.path.lstrip("/")
+    )
     # TODO: the save_path preserves the compression extension,
     # but I export the uncompressed file
 
@@ -28,7 +30,9 @@ def load_metadata(
             save_path.parent.mkdir(parents=True, exist_ok=True)
 
             if parsed_url.path.endswith(".gz"):
-                with lzma.open(response) as in_file, open(save_path, "wb") as out_file:
+                with lzma.open(response) as in_file, open(
+                    save_path, "wb"
+                ) as out_file:
                     out_file.write(in_file.read())
             elif parsed_url.path.endswith(".zst"):
                 with zstandard.ZstdDecompressor().stream_reader(
