@@ -6,10 +6,10 @@ df <- read_csv("out/sim_study.csv")
 
 p <- ggplot(df) +
   geom_boxplot(
-    aes(factor(sim_study_iteration), phi_time7),
+    aes(factor(sim_study_iteration), phi_present),
     fill = "dodgerblue4"
   ) +
-  geom_hline(aes(yintercept = true_phi_time7), color = "black", linewidth = 2) +
+  geom_hline(aes(yintercept = true_phi_present), color = "black", linewidth = 2) +
   facet_grid(rows = vars(division), cols = vars(lineage)) +
   theme_bw(base_size = 20) +
   expand_limits(y = c(0, 1)) +

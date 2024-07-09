@@ -55,14 +55,14 @@ result = prior_predictive(
 true_beta_0 = result["beta_0"][1]
 true_beta_1 = result["beta_1"][1]
 
-time7 = time_standardizer(time.max() + 7)
+present_time = time_standardizer(time.max())
 
 truth = expand_grid(
     division=division_names,
     lineage=counts.columns,
 ).with_columns(
-    true_phi_time7=softmax(
-        true_beta_0 + true_beta_1 * time7, axis=1
+    true_phi_present=softmax(
+        true_beta_0 + true_beta_1 * present_time, axis=1
     ).flatten(),
 )
 
@@ -79,7 +79,7 @@ likelihood = models.multinomial_likelihood(
 # %%
 
 NUM_MCMC_ITERATIONS = 500
-NUM_SIM_STUDY_ITERATIONS = 100
+NUM_SIM_STUDY_ITERATIONS = 50
 
 keys = jax.random.split(jax.random.key(0), NUM_SIM_STUDY_ITERATIONS)
 samples_dfs = []
@@ -116,8 +116,8 @@ for i in range(NUM_SIM_STUDY_ITERATIONS):
 (
     pl.concat(samples_dfs)
     .with_columns(
-        phi_time7=pl_softmax(
-            pl.col("beta_0") + pl.col("beta_1") * time7,
+        phi_present=pl_softmax(
+            pl.col("beta_0") + pl.col("beta_1") * present_time,
             over=["sim_study_iteration", "mcmc_iteration", "division"],
         )
     )
