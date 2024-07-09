@@ -136,10 +136,10 @@ def independent_divisions_model(
             }
         ):
             # beta_0[g, l] is the intercept for lineage l in division g
-            beta_0 = numpyro.sample("beta_0", dist.Normal(0, 3))
+            beta_0 = numpyro.sample("beta_0", dist.Normal(0, 1))
 
             # beta_1[g, l] is the slope for lineage l in division g
-            beta_1 = numpyro.sample("beta_1", dist.Normal(0, 3))
+            beta_1 = numpyro.sample("beta_1", dist.Normal(0, 1))
 
     likelihood = multinomial_likelihood(beta_0, beta_1, divisions, time, N)
 
