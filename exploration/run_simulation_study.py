@@ -19,7 +19,9 @@ data = (
     # TODO: Remove for a more comprehensive sim study
     .filter(
         # pl.col("lineage").str.starts_with("24"),
-        pl.col("division").is_in(["Arizona", "California", "New York", "Pennsylvania"]),
+        pl.col("division").is_in(
+            ["Arizona", "California", "New York", "Pennsylvania"]
+        ),
     )
     .select("lineage", "date", "count", "division")
     .pivot(on="lineage", index=["date", "division"], values="count")
