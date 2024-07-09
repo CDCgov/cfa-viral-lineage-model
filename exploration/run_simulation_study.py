@@ -18,8 +18,8 @@ data = (
     .filter(pl.col("date") >= pl.col("date").max() - 90)
     # TODO: Remove for a more comprehensive sim study
     .filter(
-        pl.col("lineage").str.starts_with("24"),
-        pl.col("division").is_in(["Arizona", "California", "New York"]),
+        # pl.col("lineage").str.starts_with("24"),
+        pl.col("division").is_in(["Arizona", "California", "New York", "Pennsylvania"]),
     )
     .select("lineage", "date", "count", "division")
     .pivot(on="lineage", index=["date", "division"], values="count")
@@ -71,7 +71,7 @@ likelihood = models.multinomial_likelihood(
     true_beta_1,
     divisions,
     time_standardizer(time),
-    counts.sum_horizontal().to_numpy(),
+    counts.sum_horizontal().to_numpy() * 500,
 )
 
 # %%
