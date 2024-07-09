@@ -10,14 +10,6 @@ p <- ggplot(df) +
     fill = "dodgerblue4"
   ) +
   geom_hline(aes(yintercept = true_phi_time7), color = "black", linewidth = 2) +
-  facet_wrap(vars(division, lineage)) +
-  theme_bw(base_size = 20) +
-  expand_limits(y = c(0, 1)) +
-  geom_boxplot(
-    aes(factor(sim_study_iteration), phi_time7),
-    fill = "dodgerblue4"
-  ) +
-  geom_hline(aes(yintercept = true_phi_time7), color = "black", linewidth = 2) +
   facet_grid(rows = vars(division), cols = vars(lineage)) +
   theme_bw(base_size = 20) +
   expand_limits(y = c(0, 1)) +
