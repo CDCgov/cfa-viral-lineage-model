@@ -9,7 +9,10 @@ p <- ggplot(df) +
     aes(factor(sim_study_iteration), phi_present),
     fill = "dodgerblue4"
   ) +
-  geom_hline(aes(yintercept = true_phi_present), color = "black", linewidth = 2) +
+  geom_hline(
+    aes(yintercept = true_phi_present),
+    color = "black", linewidth = 2
+  ) +
   facet_grid(rows = vars(division), cols = vars(lineage)) +
   theme_bw(base_size = 20) +
   expand_limits(y = c(0, 1)) +
