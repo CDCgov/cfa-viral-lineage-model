@@ -13,9 +13,7 @@ samples <- read_csv(file_path) |>
   ) |>
   mutate(
     t = str_replace(t, "m", "-") |> as.numeric()
-  ) |>
-  # TODO: why are there NAs
-  drop_na()
+  )
 
 summaries <- samples |>
   group_by(division, t, lineage) |>
