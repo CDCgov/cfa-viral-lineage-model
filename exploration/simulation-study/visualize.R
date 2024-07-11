@@ -2,7 +2,8 @@
 
 library(tidyverse)
 
-df <- read_csv("out/sim_study.csv")
+file_path <- commandArgs(trailingOnly = TRUE)[1]
+df <- read_csv(file_path)
 
 p <- ggplot(df) +
   geom_boxplot(
@@ -18,4 +19,4 @@ p <- ggplot(df) +
   expand_limits(y = c(0, 1)) +
   theme(axis.text.x = element_blank())
 
-ggsave("out/output.png", p, width = 20, height = 15, dpi = 300)
+ggsave("output.png", p, width = 20, height = 15, dpi = 300)
