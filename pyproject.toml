@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "linmod"
+version = "0.1.0"
+description = ""
+authors = ["Scott Olesen <ulp7@cdc.gov>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+numpyro = "^0.15.0"
+numpy = "^2.0.0"
+polars = "^1.1.0"
+scipy = "^1.14.0"
+zstandard = "^0.22.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

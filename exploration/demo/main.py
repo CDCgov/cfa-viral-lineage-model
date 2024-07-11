@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
 import jax
-import models
 import numpy as np
 import numpyro
 import polars as pl
 from numpyro.infer import MCMC, NUTS
-from utils import expand_grid, pl_softmax
+
+import linmod.models as models
+from linmod.utils import expand_grid, pl_softmax
 
 numpyro.set_host_device_count(4)
 
@@ -14,7 +15,7 @@ numpyro.set_host_device_count(4)
 # Load the data
 
 data = (
-    pl.read_csv("data/metadata.csv")
+    pl.read_csv("../../data/metadata.csv")
     .cast({"date": pl.Date}, strict=False)
     .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day
     .filter(pl.col("date") >= pl.col("date").max() - 90)
