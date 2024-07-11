@@ -9,6 +9,9 @@ readme = "README.md"
 python = "^3.10"
 numpyro = "^0.15.0"
 numpy = "^2.0.0"
+polars = "^1.1.0"
+scipy = "^1.14.0"
+zstandard = "^0.22.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"

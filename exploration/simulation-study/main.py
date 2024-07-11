@@ -2,23 +2,22 @@
 
 # %%
 import jax
-import models
 import numpy as np
 import polars as pl
 from numpyro.infer import MCMC, NUTS, Predictive
 from scipy.special import softmax
-from utils import expand_grid, pl_softmax
+
+import linmod.models as models
+from linmod.utils import expand_grid, pl_softmax
 
 # Load the real data. We will sample new counts
 
 data = (
-    pl.read_csv("data/metadata.csv")
+    pl.read_csv("../../data/metadata.csv")
     .cast({"date": pl.Date}, strict=False)
     .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day
     .filter(pl.col("date") >= pl.col("date").max() - 90)
-    # TODO: Remove for a more comprehensive sim study
     .filter(
-        # pl.col("lineage").str.starts_with("24"),
         pl.col("division").is_in(
             ["Arizona", "California", "New York", "Pennsylvania"]
         ),
@@ -113,7 +112,7 @@ for i in range(NUM_SIM_STUDY_ITERATIONS):
 
 # Export posterior samples
 
-(
+print(
     pl.concat(samples_dfs)
     .with_columns(
         phi_present=pl_softmax(
@@ -124,7 +123,7 @@ for i in range(NUM_SIM_STUDY_ITERATIONS):
     .join(truth, on=["division", "lineage"])
     .sort("sim_study_iteration", "mcmc_iteration", "division", "lineage")
     .drop("beta_0", "beta_1")
-    .write_csv("out/sim_study.csv")
+    .write_csv()
 )
 
 # %%
