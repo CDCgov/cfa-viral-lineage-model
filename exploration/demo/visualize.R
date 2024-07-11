@@ -2,7 +2,9 @@
 
 library(tidyverse)
 
-samples <- read_csv("out/output.csv") |>
+file_path <- commandArgs(trailingOnly = TRUE)[1]
+
+samples <- read_csv(file_path) |>
   pivot_longer(
     starts_with("phi"),
     names_to = "t",
@@ -15,28 +17,13 @@ samples <- read_csv("out/output.csv") |>
   # TODO: why are there NAs
   drop_na()
 
-max_a_posteriori <- samples |>
-  group_by(division, t) |>
-  slice_max(potential_energy, n = 1) |>
-  rename(map_phi = phi) |>
-  select(division, lineage, t, map_phi)
-
-means <- samples |>
+summaries <- samples |>
   group_by(division, t, lineage) |>
   summarize(
-    mean_phi = mean(phi)
-  )
-
-quantiles <- samples |>
-  group_by(division, t, lineage) |>
-  summarize(
+    mean_phi = mean(phi),
     q_lower = quantile(phi, 0.1),
     q_upper = quantile(phi, 0.9)
   )
-
-summaries <- means |>
-  full_join(quantiles, by = c("division", "t", "lineage")) |>
-  full_join(max_a_posteriori, by = c("division", "t", "lineage"))
 
 p <- summaries |>
   ggplot() +
@@ -52,4 +39,4 @@ p <- summaries |>
   theme_bw(base_size = 20) +
   ylab(expression(phi))
 
-ggsave(p, "out/output.png", width = 40, height = 30, dpi = 300)
+ggsave("output.png", p, width = 40, height = 30, dpi = 300)

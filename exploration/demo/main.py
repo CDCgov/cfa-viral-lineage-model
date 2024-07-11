@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+import sys
+from pathlib import Path
+
 import jax
 import numpy as np
 import numpyro
@@ -15,7 +18,8 @@ numpyro.set_host_device_count(4)
 # Load the data
 
 data = (
-    pl.read_csv("../../data/metadata.csv")
+    # TODO: add proper handling of missing path argument
+    pl.read_csv(Path(sys.argv[1]))
     .cast({"date": pl.Date}, strict=False)
     .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day
     .filter(pl.col("date") >= pl.col("date").max() - 90)
