@@ -15,8 +15,11 @@ from linmod.utils import expand_grid, pl_softmax
 
 # Load the real data. We will sample new counts
 
+if len(sys.argv) != 2:
+    print("Usage: python3 main.py <data_path>", file=sys.stderr)
+    sys.exit(1)
+
 data = (
-    # TODO: add proper handling of missing path argument
     pl.read_csv(Path(sys.argv[1]))
     .cast({"date": pl.Date}, strict=False)
     .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day

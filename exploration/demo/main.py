@@ -17,8 +17,11 @@ numpyro.set_host_device_count(4)
 
 # Load the data
 
+if len(sys.argv) != 2:
+    print("Usage: python3 main.py <data_path>", file=sys.stderr)
+    sys.exit(1)
+
 data = (
-    # TODO: add proper handling of missing path argument
     pl.read_csv(Path(sys.argv[1]))
     .cast({"date": pl.Date}, strict=False)
     .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day
