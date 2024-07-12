@@ -1,4 +1,0 @@
-numpyro
-polars
-scipy
-zstandard
