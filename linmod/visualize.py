@@ -10,20 +10,6 @@ from plotnine import (
 )
 
 
-def pl_crps(samples_column: str, truth_column: str):
-    """
-    Monte Carlo approximation to the CRPS.
-    """
-
-    samples = pl.col(samples_column)
-    truth = pl.col(truth_column)
-    n = samples.len()
-
-    return (samples - truth).abs().mean() - 0.5 * (
-        samples.head(n - 1) - samples.tail(n - 1)
-    ).abs().mean()
-
-
 def plot_samples(samples):
     summaries = samples.group_by("division", "day", "lineage").agg(
         mean_phi=pl.mean("phi"),
