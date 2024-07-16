@@ -24,22 +24,6 @@ def pl_crps(samples_column: str, truth_column: str):
     ).abs().mean()
 
 
-def dominating_lineages(df: pl.DataFrame, threshold: float):
-    """
-    In each division, return (samples from) the joint distribution of
-    the lineage that first reaches a certain threshold of prevalance
-    and the day it does so.
-    """
-
-    return (
-        df.filter(pl.col("phi") > threshold, pl.col("day") > 0)
-        .group_by("sample_index", "division", "lineage")
-        .agg(pl.min("day"))
-        .sort("division")
-        .drop("sample_index")
-    )
-
-
 def plot_samples(samples):
     summaries = samples.group_by("division", "day", "lineage").agg(
         mean_phi=pl.mean("phi"),
