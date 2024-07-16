@@ -18,7 +18,10 @@ numpyro.set_host_device_count(4)
 # Load the data
 
 if len(sys.argv) != 2:
-    print("Usage: python3 main.py <data_path>", file=sys.stderr)
+    print(
+        "Usage: python3 fit_baseline_model.py <data_path> > samples.csv",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 data = (
@@ -35,11 +38,6 @@ data = (
 
 counts = data.select(sorted(data.columns)).drop(["date", "division"])
 division_names, divisions = np.unique(data["division"], return_inverse=True)
-time = (data["date"] - data["date"].min()).dt.total_days().to_numpy()
-
-
-def time_standardizer(t):
-    return (t - time.mean()) / time.std()
 
 
 # Infer parameters
@@ -48,7 +46,7 @@ NUM_CHAINS = 4
 NUM_ITERATIONS = 500
 
 mcmc = MCMC(
-    NUTS(models.independent_divisions_model),
+    NUTS(models.baseline_model),
     num_samples=NUM_ITERATIONS,
     num_warmup=2500,
     num_chains=NUM_CHAINS,
@@ -57,7 +55,6 @@ mcmc = MCMC(
 mcmc.run(
     jax.random.key(0),
     divisions,
-    time_standardizer(time),
     counts=counts.to_numpy(),
 )
 
@@ -71,8 +68,7 @@ samples = (
         lineage=counts.columns,
     )
     .with_columns(
-        beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
-        beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
+        logit_phi=np.asarray(mcmc.get_samples()["logit_phi"]).flatten(),
         sample_index=pl.col("iteration")
         + pl.col("chain") * NUM_ITERATIONS
         + 1,
@@ -90,12 +86,9 @@ print(
     .join(samples, on="sample_index")
     .with_columns(
         phi=pl_softmax(
-            pl.col("beta_0")
-            + pl.col("beta_1")
-            * time_standardizer(time.max().item() + pl.col("day")),
-            over=["sample_index", "division", "day"],
+            pl.col("logit_phi"), over=["sample_index", "division", "day"]
         )
     )
-    .drop("beta_0", "beta_1")
+    .drop("logit_phi")
     .write_csv()
 )
