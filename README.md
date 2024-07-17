@@ -6,6 +6,14 @@
 
 This repo hosts work on modeling how the composition of viral lineages, such as SARS-CoV-2 Pango lineages, changes over time.
 
+The repo has the following structure:
+
+- `data/`, with a script for downloading raw data;
+- `linmod/`, with a package for fitting and evaluating models with this data; and
+- `exploration/`, with folders of analyses using this infrastructure.
+
+See the READMEs of individual folders in `exploration` for their specific workflows.
+
 ## General Disclaimer
 This repository was created for use by CDC programs to collaborate on public health related projects in support of the [CDC mission](https://www.cdc.gov/about/organization/mission.htm).  GitHub is not hosted by the CDC, but is a third party website used by CDC and its partners to share information and collaborate on software. CDC use of GitHub does not imply an endorsement of any one particular service, product, or enterprise.
 
