@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-
 """
-Usage: `load_metadata.py`
+Usage: `python3 -m linmod.data`
 
 Download the Nextstrain metadata file, preprocess it,
 keeping only the divisions specified by the file data/included-divisions.txt,
@@ -45,11 +43,67 @@ LINEAGE_COLUMN_NAME = "clade_nextstrain"
 # How many days of sequences should be included?
 NUM_DAYS = 90
 
+# Which divisions should be included?
+# Currently set to the 50 U.S. states, D.C., and Puerto Rico
+INCLUDED_DIVISIONS = [
+    "Alabama",
+    "Alaska",
+    "Arizona",
+    "Arkansas",
+    "California",
+    "Colorado",
+    "Connecticut",
+    "Delaware",
+    "Florida",
+    "Georgia",
+    "Hawaii",
+    "Idaho",
+    "Illinois",
+    "Indiana",
+    "Iowa",
+    "Kansas",
+    "Kentucky",
+    "Louisiana",
+    "Maine",
+    "Maryland",
+    "Massachusetts",
+    "Michigan",
+    "Minnesota",
+    "Mississippi",
+    "Missouri",
+    "Montana",
+    "Nebraska",
+    "Nevada",
+    "New Hampshire",
+    "New Jersey",
+    "New Mexico",
+    "New York",
+    "North Carolina",
+    "North Dakota",
+    "Ohio",
+    "Oklahoma",
+    "Oregon",
+    "Pennsylvania",
+    "Puerto Rico",
+    "Rhode Island",
+    "South Carolina",
+    "South Dakota",
+    "Tennessee",
+    "Texas",
+    "Utah",
+    "Vermont",
+    "Virginia",
+    "Washington",
+    "Washington DC",
+    "West Virginia",
+    "Wisconsin",
+    "Wyoming",
+]
+
 
 def load_metadata(
     collection_date: tuple | None = None,
     redownload: bool = False,
-    divisions_file: str = "data/included-divisions.txt",
 ) -> pl.DataFrame:
     """
     Download the metadata file, preprocess it, and return a `polars.DataFrame`.
@@ -94,10 +148,6 @@ def load_metadata(
     else:
         print("Using cached data.", file=sys.stderr, flush=True)
 
-    # Determine which US divisions to include
-    with open(divisions_file) as f:
-        included_divisions = [line.strip() for line in f]
-
     # Preprocess the data
     print("Preprocessing data...", file=sys.stderr, flush=True, end="")
 
@@ -111,7 +161,7 @@ def load_metadata(
         .filter(
             pl.col("date").is_not_null(),
             pl.col("date") <= pl.date(*collection_date),
-            pl.col("division").is_in(included_divisions),
+            pl.col("division").is_in(INCLUDED_DIVISIONS),
             country="USA",
             host="Homo sapiens",
         )
