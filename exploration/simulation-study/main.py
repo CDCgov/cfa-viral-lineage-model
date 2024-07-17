@@ -123,9 +123,8 @@ print(
     pl.concat(samples_dfs)
     .with_columns(
         phi_present=pl_softmax(
-            pl.col("beta_0") + pl.col("beta_1") * present_time,
-            over=["sim_study_iteration", "mcmc_iteration", "division"],
-        )
+            pl.col("beta_0") + pl.col("beta_1") * present_time
+        ).over("sim_study_iteration", "mcmc_iteration", "division")
     )
     .join(truth, on=["division", "lineage"])
     .sort("sim_study_iteration", "mcmc_iteration", "division", "lineage")

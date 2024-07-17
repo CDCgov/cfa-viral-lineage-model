@@ -27,11 +27,8 @@ def pl_crps(samples_column: str, truth_column: str):
     ).abs().mean()
 
 
-def pl_softmax(pl_expr, over=None):
-    if over is None:
-        return pl_expr.exp() / pl_expr.exp().sum()
-    else:
-        return pl_expr.exp() / pl_expr.exp().sum().over(over)
+def pl_softmax(pl_expr):
+    return pl_expr.exp() / pl_expr.exp().sum()
 
 
 def pl_mae(samples_column: str, truth_column: str):

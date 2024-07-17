@@ -96,8 +96,7 @@ print(
             pl.col("beta_0")
             + pl.col("beta_1")
             * time_standardizer(time.max().item() + pl.col("day")),
-            over=["sample_index", "division", "day"],
-        )
+        ).over("sample_index", "division", "day")
     )
     .drop("beta_0", "beta_1")
     .write_csv()

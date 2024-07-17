@@ -85,8 +85,8 @@ print(
     )
     .join(samples, on="sample_index")
     .with_columns(
-        phi=pl_softmax(
-            pl.col("logit_phi"), over=["sample_index", "division", "day"]
+        phi=pl_softmax(pl.col("logit_phi")).over(
+            "sample_index", "division", "day"
         )
     )
     .drop("logit_phi")
