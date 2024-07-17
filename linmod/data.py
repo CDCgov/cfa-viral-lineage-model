@@ -5,8 +5,10 @@ Download the Nextstrain metadata file, preprocess it,
 keeping only the divisions specified by the file data/included-divisions.txt,
 and print the result to `stdout`.
 
-The output is given in CSV format, with columns `lineage`, `date`, `division`,
-and `count`. Rows are uniquely identified by `(lineage, date, division)`.
+The output is given in CSV format, with columns `lineage`, `date`, `lcd_offset`,
+`division`, and `count`. Rows are uniquely identified by `(lineage, date, division)`.
+The `lcd_offset` column is the number of days between the last collection date
+(defaults to today) and the `date` column.
 
 Preprocessing is done to ensure that:
 - The most recent 90 days of sequences are included;
@@ -102,22 +104,22 @@ INCLUDED_DIVISIONS = [
 
 
 def load_metadata(
-    collection_date: tuple | None = None,
+    last_collection_date: tuple | None = None,
     redownload: bool = False,
 ) -> pl.DataFrame:
     """
     Download the metadata file, preprocess it, and return a `polars.DataFrame`.
 
-    The data is filtered to include only the most recent `NUM_DAYS` days of
-    sequences collected by `collection_date`, specified as a tuple `(year, month, day)`.
+    The data is filtered to include only the most recent `NUM_DAYS` days of sequences
+    collected by `last_collection_date`, specified as a tuple `(year, month, day)`.
     The column specified by `LINEAGE_COLUMN_NAME` is renamed to `lineage`.
     The unprocessed (but decompressed) data is cached in the `CACHE_DIRECTORY`.
     If `redownload`, the data is redownloaded, and the cache is replaced.
     """
 
-    if collection_date is None:
+    if last_collection_date is None:
         now = datetime.now()
-        collection_date = (now.year, now.month, now.day)
+        last_collection_date = (now.year, now.month, now.day)
 
     parsed_url = urlparse(DATA_SOURCE)
     save_path = (
@@ -125,6 +127,7 @@ def load_metadata(
         / parsed_url.netloc
         / parsed_url.path.lstrip("/").rsplit(".", 1)[0]
     )
+    # TODO: should cache save path incorporate `last_collection_date`?
 
     # Download the data if necessary
     if redownload or not os.path.exists(save_path):
@@ -160,7 +163,7 @@ def load_metadata(
         .cast({"date": pl.Date}, strict=False)
         .filter(
             pl.col("date").is_not_null(),
-            pl.col("date") <= pl.date(*collection_date),
+            pl.col("date") <= pl.date(*last_collection_date),
             pl.col("division").is_in(INCLUDED_DIVISIONS),
             country="USA",
             host="Homo sapiens",
@@ -170,6 +173,12 @@ def load_metadata(
         )
         .group_by("lineage", "date", "division")
         .agg(pl.len().alias("count"))
+        .with_columns(
+            lcd_offset=(
+                pl.col("date") - pl.date(*last_collection_date)
+            ).dt.total_days()
+        )
+        .select("lineage", "date", "lcd_offset", "division", "count")
     )
 
     print(" done.", file=sys.stderr, flush=True)
@@ -179,6 +188,7 @@ def load_metadata(
 
 if __name__ == "__main__":
     data = load_metadata()
+    # TODO: an argparse setup to specify `last_collection_date`
 
     print(data.collect().write_csv(), end="")
     print("\nSuccess.", file=sys.stderr)

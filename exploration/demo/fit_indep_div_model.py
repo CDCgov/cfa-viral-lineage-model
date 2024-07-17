@@ -25,15 +25,15 @@ if len(sys.argv) != 2:
 
 data = (
     pl.read_csv(sys.argv[1], try_parse_dates=True)
-    .pivot(on="lineage", index=["date", "division"], values="count")
+    .pivot(on="lineage", index=["lcd_offset", "division"], values="count")
     .fill_null(0)
 )
 
 # Extract count matrix, division indices, and time covariate
 
-counts = data.select(sorted(data.columns)).drop(["date", "division"])
+counts = data.select(sorted(data.columns)).drop("lcd_offset", "division")
 division_names, divisions = np.unique(data["division"], return_inverse=True)
-time = (data["date"] - data["date"].min()).dt.total_days().to_numpy()
+time = data["lcd_offset"].to_numpy()
 
 
 def time_standardizer(t):
@@ -83,15 +83,14 @@ samples = (
 print(
     expand_grid(
         sample_index=samples["sample_index"].unique(),
-        day=np.arange(-30, 15),
+        lcd_offset=np.arange(-30, 15),
     )
     .join(samples, on="sample_index")
     .with_columns(
         phi=pl_softmax(
             pl.col("beta_0")
-            + pl.col("beta_1")
-            * time_standardizer(time.max().item() + pl.col("day")),
-        ).over("sample_index", "division", "day")
+            + pl.col("beta_1") * time_standardizer(pl.col("lcd_offset")),
+        ).over("sample_index", "division", "lcd_offset")
     )
     .drop("beta_0", "beta_1")
     .write_csv(),

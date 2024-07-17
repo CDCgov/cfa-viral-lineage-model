@@ -18,13 +18,7 @@ if len(sys.argv) != 2:
     )
     sys.exit(1)
 
-data = (
-    pl.scan_csv(sys.argv[1], try_parse_dates=True)
-    .with_columns(
-        day=(pl.col("date") - pl.max("date")).dt.total_days(),
-    )
-    .select("lineage", "division", "day", "count")
-)
+data = pl.scan_csv(sys.argv[1], try_parse_dates=True)
 
 scores = {}
 
