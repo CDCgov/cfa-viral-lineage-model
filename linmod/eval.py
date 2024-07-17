@@ -3,7 +3,7 @@ import polars as pl
 from linmod.utils import pl_mae
 
 
-def mae(samples, data):
+def proportions_mae(samples, data):
     """
     A simple MAE on phi for each lineage-division-day.
 
