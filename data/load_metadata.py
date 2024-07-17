@@ -11,6 +11,7 @@ The output is given in CSV format, with columns `lineage`, `date`, `division`,
 and `count`. Rows are uniquely identified by `(lineage, date, division)`.
 
 Preprocessing is done to ensure that:
+- The most recent 90 days of sequences are included;
 - Observations without a recorded date are removed;
 - Only the 50 U.S. states, D.C., and Puerto Rico are included; and
 - Only observations from human hosts are included.
@@ -22,6 +23,7 @@ https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst
 import lzma
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -40,18 +42,28 @@ DATA_SOURCE = "https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst"
 # What column should be renamed to `lineage`?
 LINEAGE_COLUMN_NAME = "clade_nextstrain"
 
+# How many days of sequences should be included?
+NUM_DAYS = 90
+
 
 def load_metadata(
+    collection_date: tuple | None = None,
     redownload: bool = False,
     divisions_file: str = "data/included-divisions.txt",
 ) -> pl.DataFrame:
     """
     Download the metadata file, preprocess it, and return a `polars.DataFrame`.
 
+    The data is filtered to include only the most recent `NUM_DAYS` days of
+    sequences collected by `collection_date`, specified as a tuple `(year, month, day)`.
     The column specified by `LINEAGE_COLUMN_NAME` is renamed to `lineage`.
     The unprocessed (but decompressed) data is cached in the `CACHE_DIRECTORY`.
     If `redownload`, the data is redownloaded, and the cache is replaced.
     """
+
+    if collection_date is None:
+        now = datetime.now()
+        collection_date = (now.year, now.month, now.day)
 
     parsed_url = urlparse(DATA_SOURCE)
     save_path = (
@@ -92,15 +104,22 @@ def load_metadata(
     df = (
         pl.scan_csv(save_path, separator="\t")
         .rename({LINEAGE_COLUMN_NAME: "lineage"})
+        # Cast with `strict=False` replaces invalid values with null,
+        # which we can then filter out. Invalid values include dates
+        # that are resolved only to the month, not the day
+        .cast({"date": pl.Date}, strict=False)
         .filter(
             pl.col("date").is_not_null(),
+            pl.col("date") <= pl.date(*collection_date),
             pl.col("division").is_in(included_divisions),
             country="USA",
             host="Homo sapiens",
         )
+        .filter(
+            pl.col("date") >= pl.col("date").max() - 90,
+        )
         .group_by("lineage", "date", "division")
         .agg(pl.len().alias("count"))
-        .collect()
     )
 
     print(" done.", file=sys.stderr, flush=True)
@@ -111,5 +130,5 @@ def load_metadata(
 if __name__ == "__main__":
     data = load_metadata()
 
-    print(data.write_csv())
+    print(data.collect().write_csv(), end="")
     print("\nSuccess.", file=sys.stderr)
