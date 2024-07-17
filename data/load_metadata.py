@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 """
-Usage: `load_metadata.py [URL]`
+Usage: `load_metadata.py`
 
-Download the Nextstrain metadata file from the given `URL`, preprocess it,
+Download the Nextstrain metadata file, preprocess it,
 keeping only the divisions specified by the file data/included-divisions.txt,
 and print the result to `stdout`.
 
@@ -15,7 +15,7 @@ Preprocessing is done to ensure that:
 - Only the 50 U.S. states, D.C., and Puerto Rico are included; and
 - Only observations from human hosts are included.
 
-If no `URL` is given, defaults to:
+The data is downloaded from:
 https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst
 """
 
@@ -29,24 +29,31 @@ from urllib.request import urlopen
 import polars as pl
 import zstandard
 
+# Configuration
+
+# Where should the unprocessed (but decompressed) data be stored?
 CACHE_DIRECTORY = Path(".cache")
+
+# Where should the data be downloaded from?
+DATA_SOURCE = "https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst"
+
+# What column should be renamed to `lineage`?
+LINEAGE_COLUMN_NAME = "clade_nextstrain"
 
 
 def load_metadata(
-    url: str,
-    lineage_column_name: str,
     redownload: bool = False,
     divisions_file: str = "data/included-divisions.txt",
 ) -> pl.DataFrame:
     """
-    Download the metadata file at `url`, preprocess it, and return a `polars.DataFrame`.
+    Download the metadata file, preprocess it, and return a `polars.DataFrame`.
 
-    The column specified by `lineage_column_name` is renamed to `lineage`.
-    The unprocessed (but decompressed) data is cached in the `.cache` directory.
+    The column specified by `LINEAGE_COLUMN_NAME` is renamed to `lineage`.
+    The unprocessed (but decompressed) data is cached in the `CACHE_DIRECTORY`.
     If `redownload`, the data is redownloaded, and the cache is replaced.
     """
 
-    parsed_url = urlparse(url)
+    parsed_url = urlparse(DATA_SOURCE)
     save_path = (
         CACHE_DIRECTORY
         / parsed_url.netloc
@@ -58,7 +65,9 @@ def load_metadata(
         print("Downloading...", file=sys.stderr, flush=True, end="")
 
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        with urlopen(url) as response, save_path.open("wb") as out_file:
+        with urlopen(DATA_SOURCE) as response, save_path.open(
+            "wb"
+        ) as out_file:
             if parsed_url.path.endswith(".gz"):
                 with lzma.open(response) as in_file:
                     out_file.write(in_file.read())
@@ -82,7 +91,7 @@ def load_metadata(
 
     df = (
         pl.scan_csv(save_path, separator="\t")
-        .rename({lineage_column_name: "lineage"})
+        .rename({LINEAGE_COLUMN_NAME: "lineage"})
         .filter(
             pl.col("date").is_not_null(),
             pl.col("division").is_in(included_divisions),
@@ -100,13 +109,7 @@ def load_metadata(
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 1:
-        url = "https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst"
-        print(f"Will load from {url}\n", file=sys.stderr, flush=True)
-    else:
-        url = sys.argv[1]
-
-    data = load_metadata(url=url, lineage_column_name="clade_nextstrain")
+    data = load_metadata()
 
     print(data.write_csv())
     print("\nSuccess.", file=sys.stderr)
