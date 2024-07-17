@@ -1,13 +1,22 @@
 #!/usr/bin/env python3
 
+import os
+import sys
 from pathlib import Path
 
 import polars as pl
 
 from linmod.eval.proportions import mae
 
+if len(sys.argv) != 2:
+    print(
+        "Usage: python3 evaluate.py <data_path>",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
 data = (
-    pl.scan_csv(Path("../../data/metadata.csv"))
+    pl.scan_csv(sys.argv[1])
     .cast({"date": pl.Date}, strict=False)
     .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day
     .filter(pl.col("date") >= pl.col("date").max() - 90)
@@ -19,12 +28,14 @@ data = (
 
 scores = {}
 
-for samples_file in ("out/samples-baseline.csv", "out/samples-id.csv"):
-    name = Path(samples_file).stem
+for samples_file in os.listdir("out/"):
+    samples_file = Path("out") / samples_file
     samples = pl.scan_csv(samples_file).drop_nulls()
     # TODO: where is the row of nulls coming from
 
-    scores[name] = mae(samples, data).collect().get_column("mae").sum()
+    scores[samples_file.stem] = (
+        mae(samples, data).collect().get_column("mae").sum()
+    )
 
 for name, score in scores.items():
     print(f"{name}: {score}")
