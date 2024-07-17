@@ -6,7 +6,7 @@ from pathlib import Path
 
 import polars as pl
 
-from linmod.eval import mae
+from linmod.eval import proportions_mae
 
 if len(sys.argv) != 2:
     print(
@@ -34,7 +34,7 @@ for samples_file in os.listdir("out/"):
     # TODO: where is the row of nulls coming from
 
     scores[samples_file.stem] = (
-        mae(samples, data).collect().get_column("mae").sum()
+        proportions_mae(samples, data).collect().get_column("mae").sum()
     )
 
 for name, score in scores.items():
