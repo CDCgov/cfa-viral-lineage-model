@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import sys
-from pathlib import Path
 
 import jax
 import numpy as np
@@ -25,11 +24,7 @@ if len(sys.argv) != 2:
     sys.exit(1)
 
 data = (
-    pl.read_csv(Path(sys.argv[1]))
-    .cast({"date": pl.Date}, strict=False)
-    .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day
-    .filter(pl.col("date") >= pl.col("date").max() - 90)
-    .select(["lineage", "date", "count", "division"])
+    pl.read_csv(sys.argv[1], try_parse_dates=True)
     .pivot(on="lineage", index=["date", "division"], values="count")
     .fill_null(0)
 )
@@ -99,5 +94,6 @@ print(
         ).over("sample_index", "division", "day")
     )
     .drop("beta_0", "beta_1")
-    .write_csv()
+    .write_csv(),
+    end="",
 )

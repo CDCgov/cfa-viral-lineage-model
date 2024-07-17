@@ -7,8 +7,7 @@ from linmod.eval import plot_samples
 
 for samples_file in os.listdir("out/"):
     name = Path(samples_file).stem
-    samples = pl.scan_csv(samples_file).drop_nulls()
-    # TODO: where is the row of nulls coming from
+    samples = pl.scan_csv(samples_file)
 
     p = plot_samples(samples.collect())
     p.save(

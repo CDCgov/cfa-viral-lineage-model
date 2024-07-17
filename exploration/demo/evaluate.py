@@ -19,10 +19,7 @@ if len(sys.argv) != 2:
     sys.exit(1)
 
 data = (
-    pl.scan_csv(sys.argv[1])
-    .cast({"date": pl.Date}, strict=False)
-    .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day
-    .filter(pl.col("date") >= pl.col("date").max() - 90)
+    pl.scan_csv(sys.argv[1], try_parse_dates=True)
     .with_columns(
         day=(pl.col("date") - pl.max("date")).dt.total_days(),
     )
@@ -33,8 +30,7 @@ scores = {}
 
 for samples_file in os.listdir("out/"):
     samples_file = Path("out") / samples_file
-    samples = pl.scan_csv(samples_file).drop_nulls()
-    # TODO: where is the row of nulls coming from
+    samples = pl.scan_csv(samples_file)
 
     for score_name, score_func in score_functions.items():
         scores[(samples_file.stem, score_name)] = score_func(samples, data)
