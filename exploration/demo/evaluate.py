@@ -6,7 +6,7 @@ from pathlib import Path
 
 import polars as pl
 
-from linmod.eval.proportions import mae
+from linmod.eval import mae
 
 if len(sys.argv) != 2:
     print(
