@@ -41,20 +41,20 @@ Rows are uniquely identified by `(division, lineage, day, sample_index)`.
 ## Milestones & timeline
 
 Must-haves
-1. [x] Implement baseline and starter models
+- [x] (1) Implement baseline and starter models
 	- Regression assuming spatial independence, no time covariate
 	- Regression assuming spatial independence and a time covariate
-2. [x] Design simulation study to verify model implementation
-3. [ ] Implement a metric to evaluate population-level lineage domination time predictions in a retrospective setting
+- [x] (2) Design simulation study to verify model implementation
+- [ ] (3) Implement a metric to evaluate population-level lineage domination time predictions in a retrospective setting
 	- Answer two questions: will lineage X take off? Given that lineage X takes off, at what time point does it reach 50% phi?
-4. [ ] Prepare for symposium & friends
+- [ ] (4) Prepare for symposium & friends
 
 Wishlist
-5. [ ] Can we obtain lineage growth rates in a model-agnostic way, from only posterior samples of population-level lineage proportions?
-6. [ ] Implement more advanced model and simulation study to verify
+- [ ] (5) Can we obtain lineage growth rates in a model-agnostic way, from only posterior samples of population-level lineage proportions?
+- [ ] (6) Implement more advanced model and simulation study to verify
 	- Regression with information sharing over space
-7. [ ] Study more on how to set priors on the logit scale to induce priors on the probability simplex
-8. [ ] Does our ability to identify "good" models change if we evaluate daily vs weekly predictions?
+- [ ] (7) Study more on how to set priors on the logit scale to induce priors on the probability simplex
+- [ ] (8) Does our ability to identify "good" models change if we evaluate daily vs weekly predictions?
 
 | Sprint | Start Date | Target milestones | Notes                            |
 | ------ | ---------- | ----------------- | -------------------------------- |
