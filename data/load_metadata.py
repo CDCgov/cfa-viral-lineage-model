@@ -4,6 +4,7 @@
 Usage: `load_metadata.py [URL]`
 
 Download the Nextstrain metadata file from the given `URL`, preprocess it,
+keeping only the divisions specified by the file data/included-divisions.txt,
 and print the result to `stdout`.
 
 The output is given in CSV format, with columns `lineage`, `date`, `division`,
@@ -34,7 +35,8 @@ CACHE_DIRECTORY = Path(".cache")
 def load_metadata(
     url: str,
     lineage_column_name: str,
-    redownload: str = False,
+    redownload: bool = False,
+    divisions_file: str = "data/included-divisions.txt"
 ) -> pl.DataFrame:
     """
     Download the metadata file at `url`, preprocess it, and return a `polars.DataFrame`.
@@ -55,8 +57,8 @@ def load_metadata(
     if redownload or not os.path.exists(save_path):
         print("Downloading...", file=sys.stderr, flush=True, end="")
 
+        save_path.parent.mkdir(parents=True, exist_ok=True)
         with urlopen(url) as response, save_path.open("wb") as out_file:
-            save_path.parent.mkdir(parents=True, exist_ok=True)
 
             if parsed_url.path.endswith(".gz"):
                 with lzma.open(response) as in_file:
@@ -73,8 +75,8 @@ def load_metadata(
         print("Using cached data.", file=sys.stderr, flush=True)
 
     # Determine which US divisions to include
-    with open("included-divisions.txt") as divisions_file:
-        included_divisions = [line.strip() for line in divisions_file]
+    with open(divisions_file) as f:
+        included_divisions = [line.strip() for line in f]
 
     # Preprocess the data
     print("Preprocessing data...", file=sys.stderr, flush=True, end="")
@@ -107,8 +109,7 @@ if __name__ == "__main__":
 
     data = load_metadata(
         url=url,
-        lineage_column_name="clade_nextstrain",
-        redownload=True,
+        lineage_column_name="clade_nextstrain"
     )
 
     print(data.write_csv())
