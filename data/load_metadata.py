@@ -36,7 +36,7 @@ def load_metadata(
     url: str,
     lineage_column_name: str,
     redownload: bool = False,
-    divisions_file: str = "data/included-divisions.txt"
+    divisions_file: str = "data/included-divisions.txt",
 ) -> pl.DataFrame:
     """
     Download the metadata file at `url`, preprocess it, and return a `polars.DataFrame`.
@@ -59,7 +59,6 @@ def load_metadata(
 
         save_path.parent.mkdir(parents=True, exist_ok=True)
         with urlopen(url) as response, save_path.open("wb") as out_file:
-
             if parsed_url.path.endswith(".gz"):
                 with lzma.open(response) as in_file:
                     out_file.write(in_file.read())
@@ -107,10 +106,7 @@ if __name__ == "__main__":
     else:
         url = sys.argv[1]
 
-    data = load_metadata(
-        url=url,
-        lineage_column_name="clade_nextstrain"
-    )
+    data = load_metadata(url=url, lineage_column_name="clade_nextstrain")
 
     print(data.write_csv())
     print("\nSuccess.", file=sys.stderr)
