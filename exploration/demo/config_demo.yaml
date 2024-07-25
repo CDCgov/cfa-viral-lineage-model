@@ -1,0 +1,4 @@
+models:
+  - Baseline
+scores:
+  - mae_proportions
