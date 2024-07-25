@@ -1,6 +1,8 @@
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
+from linmod.utils import expand_grid, pl_softmax
+import polars as pl
 
 
 def hierarchical_divisions_model(
@@ -148,58 +150,102 @@ def independent_divisions_model(
     numpyro.sample("Y", likelihood, obs=counts)
 
 
-def baseline_model(
-    divisions: np.ndarray,
-    counts: np.ndarray | None = None,
-    N: np.ndarray | None = None,
-    num_lineages: int | None = None,
-):
-    """
-    Multinomial model assuming independence between divisions and specifying a
-    constant proportion over time for each division-lineage.
-    Observations are counts of lineages for each division-day.
-    See https://doi.org/10.1101/2023.01.02.23284123
-    No parameters are constrained here, so specific coefficients are not identifiable.
-
-    divisions:      A vector of indices representing the division of each observation.
-    counts:         A matrix of counts with shape (num_observations, num_lineages).
-                    Set to `None` to use as a generative model.
-    N:              A vector of total counts (across lineages) for each observation.
-                    Not required if providing observed `counts`.
-    num_lineages:   The number of lineages.
-                    Not required if providing observed `counts`.
-
-    """
-
-    if counts is None:
-        assert num_lineages is not None and N is not None
-    else:
-        assert num_lineages is None and N is None
-
-        N = counts.sum(axis=1)
-        num_lineages = counts.shape[1]
-
-    with numpyro.plate_stack(
-        "division-lineage", (np.unique(divisions).size, num_lineages)
+class Baseline:
+    def __init__(
+        self,
+        divisions: np.ndarray,
+        counts: np.ndarray | None = None,
+        N: np.ndarray | None = None,
+        num_lineages: int | None = None,
     ):
-        with numpyro.handlers.reparam(
-            config={
-                "logit_phi": numpyro.infer.reparam.LocScaleReparam(centered=0),
-            }
-        ):
-            # logit_phi[g, l] is for lineage l in division g
-            logit_phi = numpyro.sample("logit_phi", dist.Normal(0, 1))
+        """
+        Multinomial model assuming independence between divisions and specifying a
+        constant proportion over time for each division-lineage.
+        Observations are counts of lineages for each division-day.
+        See https://doi.org/10.1101/2023.01.02.23284123
+        No parameters are constrained here, so specific coefficients are not identifiable.
 
-    likelihood = multinomial_likelihood(
-        logit_phi,
-        0 * logit_phi,
-        divisions,
-        0 * divisions,
-        N,
-    )
+        divisions:      A vector of indices representing the division of each observation.
+        counts:         A matrix of counts with shape (num_observations, num_lineages).
+                        Set to `None` to use as a generative model.
+        N:              A vector of total counts (across lineages) for each observation.
+                        Not required if providing observed `counts`.
+        num_lineages:   The number of lineages.
+                        Not required if providing observed `counts`.
 
-    # Y[i, l] is the count of lineage l for observation i
-    numpyro.sample("Y", likelihood, obs=counts)
+        """
+        self.divisions = divisions
+        self.counts = counts
+        self.N = N
+        self.num_lineages = num_lineages
+
+    def make_mcmc_model(self):
+        def model():
+            # pull values from parent object
+            counts = self.counts
+            N = self.N
+            num_lineages = self.num_lineages
+
+            if counts is None:
+                assert num_lineages is not None and N is not None
+            else:
+                assert num_lineages is None and N is None
+
+                N = self.counts.sum(axis=1)
+                num_lineages = self.counts.shape[1]
+
+            with numpyro.plate_stack(
+                "division-lineage", (np.unique(self.divisions).size, num_lineages)
+            ):
+                with numpyro.handlers.reparam(
+                    config={
+                        "logit_phi": numpyro.infer.reparam.LocScaleReparam(centered=0),
+                    }
+                ):
+                    # logit_phi[g, l] is for lineage l in division g
+                    logit_phi = numpyro.sample("logit_phi", dist.Normal(0, 1))
+
+            likelihood = multinomial_likelihood(
+                logit_phi,
+                0 * logit_phi,
+                self.divisions,
+                0 * self.divisions,
+                N,
+            )
+
+            # Y[i, l] is the count of lineage l for observation i
+            numpyro.sample("Y", likelihood, obs=counts)
+
+    def postprocess_mcmc(
+        self, mcmc, n_chains, n_iterations, division_names, forecast_start, forecast_end
+    ):
+        samples = (
+            expand_grid(
+                chain=np.arange(n_chains),
+                iteration=np.arange(n_iterations),
+                division=division_names,
+                lineage=self.counts.columns,
+            )
+            .with_columns(
+                logit_phi=np.asarray(mcmc.get_samples()["logit_phi"]).flatten(),
+                sample_index=pl.col("iteration") + pl.col("chain") * n_iterations + 1,
+            )
+            .drop("chain", "iteration")
+        )
+
+        return (
+            expand_grid(
+                sample_index=samples["sample_index"].unique(),
+                day=np.arange(forecast_start, forecast_end),
+            )
+            .join(samples, on="sample_index")
+            .with_columns(
+                phi=pl_softmax(pl.col("logit_phi")).over(
+                    "sample_index", "division", "day"
+                )
+            )
+            .drop("logit_phi")
+        )
 
 
 def multinomial_likelihood(
