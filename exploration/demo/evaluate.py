@@ -6,9 +6,12 @@ from pathlib import Path
 
 import polars as pl
 
-from linmod.eval import proportions_mae
+from linmod.eval import proportions_energy_score, proportions_mean_norm
 
-score_functions = {"mae": proportions_mae}
+score_functions = {
+    "mean_norm": proportions_mean_norm,
+    "energy_score": proportions_energy_score,
+}
 
 
 if len(sys.argv) != 2:

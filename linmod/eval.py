@@ -39,6 +39,17 @@ def proportions_mean_norm_per_division_day(samples, data, L=1):
     )
 
 
+def proportions_mean_norm(sample, data, L=1) -> float:
+    """The expected norm of phi error, summed over all divisions and days."""
+
+    return (
+        proportions_mean_norm_per_division_day(sample, data, L=L)
+        .collect()
+        .get_column("mean_norm")
+        .sum()
+    )
+
+
 def proportions_energy_score_per_division_day(samples, data):
     """
     Monte Carlo approximation to the energy score (multivariate generalization of CRPS)
@@ -76,4 +87,15 @@ def proportions_energy_score_per_division_day(samples, data):
         .agg(
             energy_score=pl.col("term1").mean() - 0.5 * pl.col("term2").mean()
         )
+    )
+
+
+def proportions_energy_score(sample, data) -> float:
+    """The energy score of phi, summed over all divisions and days."""
+
+    return (
+        proportions_energy_score_per_division_day(sample, data)
+        .collect()
+        .get_column("energy_score")
+        .sum()
     )
