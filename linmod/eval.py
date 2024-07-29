@@ -16,7 +16,9 @@ def proportions_mae_per_division_day(samples, data) -> pl.DataFrame:
     return (
         (
             data.with_columns(
-                phi=(pl.col("count") / pl.sum("count").over("division", "day")),
+                phi=(
+                    pl.col("count") / pl.sum("count").over("division", "day")
+                ),
             )
             .drop("count")
             .join(
@@ -38,4 +40,6 @@ def proportions_mae(
 ) -> float:
     """MAE on phi, summed over all lineages, divisions, and days"""
 
-    return proportions_mae(sample, data).collect().get_columns(score_column).sum()
+    return (
+        proportions_mae(sample, data).collect().get_columns(score_column).sum()
+    )
