@@ -3,7 +3,7 @@ import polars as pl
 from linmod.utils import pl_mae
 
 
-def proportions_mae(samples, data):
+def proportions_mae_per_division_day(samples, data) -> pl.DataFrame:
     """
     A simple MAE on phi for each lineage-division-day.
 
@@ -30,4 +30,16 @@ def proportions_mae(samples, data):
         )
         .group_by("lineage", "division", "day")
         .agg(mae=pl_mae("phi", "phi_sampled"))
+        .group_by("division", "day")
+        .agg(pl.sum("mae"))
+    )
+
+
+def proportions_mae(
+    sample: pl.DataFrame, data: pl.DataFrame, score_column: str = "mae"
+) -> float:
+    """MAE on phi, summed over all lineages, divisions, and days"""
+
+    return (
+        proportions_mae(sample, data).collect().get_columns(score_column).sum()
     )

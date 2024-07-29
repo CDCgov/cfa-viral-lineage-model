@@ -8,6 +8,9 @@ import polars as pl
 
 from linmod.eval import proportions_mae
 
+score_functions = {"mae": proportions_mae}
+
+
 if len(sys.argv) != 2:
     print(
         "Usage: python3 evaluate.py <data_path>",
@@ -33,9 +36,8 @@ for samples_file in os.listdir("out/"):
     samples = pl.scan_csv(samples_file).drop_nulls()
     # TODO: where is the row of nulls coming from
 
-    scores[samples_file.stem] = (
-        proportions_mae(samples, data).collect().get_column("mae").sum()
-    )
+    for score_name, score_func in score_functions.items():
+        scores[(samples_file.stem, score_name)] = score_func(samples, data)
 
 for name, score in scores.items():
     print(f"{name}: {score}")
