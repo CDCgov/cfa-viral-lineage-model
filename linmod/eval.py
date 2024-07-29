@@ -28,6 +28,8 @@ def proportions_mae_per_division_day(samples, data) -> pl.DataFrame:
         )
         .group_by("lineage", "division", "day")
         .agg(mae=pl_mae("phi", "phi_sampled"))
+        .group_by("division", "day")
+        .agg(pl.sum("mae"))
     )
 
 
