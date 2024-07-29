@@ -1,16 +1,45 @@
-import numpy as np
-from numpy.typing import ArrayLike
+import polars as pl
+
+from linmod.utils import pl_mae
 
 
-def crps(samples: ArrayLike, truth: float):
+def proportions_mae_per_division_day(samples, data) -> pl.DataFrame:
     """
-    Monte Carlo approximation to the CRPS.
+    A simple MAE on phi for each lineage-division-day.
+
+    `samples` should have the standard model output format.
+    `data` should have columns `(lineage, division, day, count)`.
+
+    Returns a DataFrame with columns `(lineage, division, day, mae)`.
     """
 
     return (
-        np.abs(samples - truth).mean()
-        - 0.5 * np.abs(samples[::2] - samples[1::2]).mean()
-        # TODO: 10.1007/s11749-008-0114-x uses overlapping pairs of samples
-        # but I am not sure if this is safe
-        # - 0.5 * np.abs(samples[:-1] - samples[1:]).mean()
+        (
+            data.with_columns(
+                phi=(
+                    pl.col("count") / pl.sum("count").over("division", "day")
+                ),
+            )
+            .drop("count")
+            .join(
+                samples,
+                on=("lineage", "division", "day"),
+                how="left",
+                suffix="_sampled",
+            )
+        )
+        .group_by("lineage", "division", "day")
+        .agg(mae=pl_mae("phi", "phi_sampled"))
+        .group_by("division", "day")
+        .agg(pl.sum("mae"))
+    )
+
+
+def proportions_mae(
+    sample: pl.DataFrame, data: pl.DataFrame, score_column: str = "mae"
+) -> float:
+    """MAE on phi, summed over all lineages, divisions, and days"""
+
+    return (
+        proportions_mae(sample, data).collect().get_columns(score_column).sum()
     )

@@ -17,8 +17,14 @@ numpyro.set_host_device_count(4)
 
 # Load the data
 
+if len(sys.argv) != 2:
+    print(
+        "Usage: python3 fit_indep_div_model.py <data_path> > samples.csv",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
 data = (
-    # TODO: add proper handling of missing path argument
     pl.read_csv(Path(sys.argv[1]))
     .cast({"date": pl.Date}, strict=False)
     .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day
@@ -60,28 +66,38 @@ mcmc.run(
 
 # Collect posterior regression parameter samples
 
-samples = expand_grid(
-    chain=np.arange(NUM_CHAINS) + 1,
-    iteration=np.arange(NUM_ITERATIONS) + 1,
-    division=division_names,
-    lineage=counts.columns,
-).with_columns(
-    beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
-    beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
+samples = (
+    expand_grid(
+        chain=np.arange(NUM_CHAINS),
+        iteration=np.arange(NUM_ITERATIONS),
+        division=division_names,
+        lineage=counts.columns,
+    )
+    .with_columns(
+        beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
+        beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
+        sample_index=pl.col("iteration")
+        + pl.col("chain") * NUM_ITERATIONS
+        + 1,
+    )
+    .drop("chain", "iteration")
 )
 
-# Compute posterior samples for population-level lineage proportions
+# Compute posterior samples for population-level lineage proportions over time
 
-for delta_t in range(-30, 15):
-    t = time_standardizer(time.max() + delta_t)
-
-    samples = samples.with_columns(
-        pl_softmax(
-            pl.col("beta_0") + pl.col("beta_1") * t,
-            over=["chain", "iteration", "division"],
-        ).alias(f"phi_t{delta_t}".replace("-", "m")),
+print(
+    expand_grid(
+        sample_index=samples["sample_index"].unique(),
+        day=np.arange(-30, 15),
     )
-
-samples = samples.drop(["beta_0", "beta_1"])
-
-print(samples.write_csv())
+    .join(samples, on="sample_index")
+    .with_columns(
+        phi=pl_softmax(
+            pl.col("beta_0")
+            + pl.col("beta_1")
+            * time_standardizer(time.max().item() + pl.col("day")),
+        ).over("sample_index", "division", "day")
+    )
+    .drop("beta_0", "beta_1")
+    .write_csv()
+)
