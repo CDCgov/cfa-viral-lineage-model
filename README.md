@@ -16,23 +16,23 @@ See the READMEs of individual folders in `exploration` for their specific workfl
 ### Architecture
 
 The model is provided with lightly-preprocessed data of variant sequences from humans in the USA, from [Nextstrain](https://docs.nextstrain.org/projects/ncov/en/latest/reference/remote_inputs.html) ([data dictionary](https://docs.nextstrain.org/projects/ncov/en/latest/reference/metadata-fields.html)).
-A CSV is provided, with columns `date`, `lcd_offset`, `division`, `lineage`, `count`.
+A CSV is provided, with columns `date`, `fd_offset`, `division`, `lineage`, `count`.
 Rows are uniquely identified by `(date, division, lineage)`.
-`date` and `lcd_offset` can be computed from each other, given the forecast date.
+`date` and `fd_offset` can be computed from each other, given the forecast date.
 
-Note that `date` is the sample collection date. `lcd` refers to the latest collection date (i.e. forecast date). Sequences are filtered to have a collection date no later than the forecast date.
+Note that `date` is the sample collection date. `fd` refers to the forecast date. Sequences are filtered to have a collection date no later than the forecast date.
 
-| date       | lcd_offset | division     | lineage | count |
+| date       | fd_offset | division     | lineage | count |
 | ---------- | ---------- | ------------ | ------- | ----- |
 | 2024-05-07 | -12        | Arizona      | 24A     | 1     |
 | 2024-05-04 | -15        | Pennsylvania | 24A     | 2     |
 | ...        | ...        | ...          | ...     | ...   |
 
 The model must output samples of population-level lineage proportions.
-A CSV should be provided, with columns `lcd_offset`, `division`, `lineage`, `sample_index`, and `phi`, for `lcd_offset = -30, ..., 14`.
-Rows are uniquely identified by `(lcd_offset, division, lineage, sample_index)`.
+A CSV should be provided, with columns `fd_offset`, `division`, `lineage`, `sample_index`, and `phi`, for `fd_offset = -30, ..., 14`.
+Rows are uniquely identified by `(fd_offset, division, lineage, sample_index)`.
 
-| lcd_offset | division | lineage | sample_index | phi            |
+| fd_offset | division | lineage | sample_index | phi            |
 | ---------- | -------- | ------- | ------------ | -------------- |
 | -30        | Alabama  | 22B     | 1            | 0.000014979599 |
 | -30        | Alabama  | 22B     | 2            | 9.945703e-7    |

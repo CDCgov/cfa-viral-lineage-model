@@ -3,10 +3,10 @@ Usage: `python3 -m linmod.data`
 
 Download the Nextstrain metadata file, preprocess it, and print the result to `stdout`.
 
-The output is given in CSV format, with columns `date`, `lcd_offset`, `division`,
+The output is given in CSV format, with columns `date`, `fd_offset`, `division`,
 `lineage`, `count`. Rows are uniquely identified by `(date, division, lineage)`.
-`date` and `lcd_offset` can be computed from each other, given the forecast date;
-the `lcd_offset` column is the number of days between the last collection date
+`date` and `fd_offset` can be computed from each other, given the forecast date;
+the `fd_offset` column is the number of days between the forecast date
 (defaults to today) and the `date` column.
 
 Preprocessing is done to ensure that:
@@ -103,23 +103,23 @@ INCLUDED_DIVISIONS = [
 
 
 def load_metadata(
-    last_collection_date: tuple | None = None,
+    forecast_date: tuple | None = None,
     redownload: bool = False,
 ) -> pl.DataFrame:
     """
     Download the metadata file, preprocess it, and return a `polars.DataFrame`.
 
     The data is filtered to include only the most recent `NUM_DAYS` days of sequences
-    collected by `last_collection_date`, specified as a tuple `(year, month, day)`
+    collected by `forecast_date`, specified as a tuple `(year, month, day)`
     (defaulting to today's date if not specified). The column specified by
     `LINEAGE_COLUMN_NAME` is renamed to `lineage`. The unprocessed (but decompressed)
     data is cached in the `CACHE_DIRECTORY`. If `redownload`, the data is redownloaded,
     and the cache is replaced.
     """
 
-    if last_collection_date is None:
+    if forecast_date is None:
         now = datetime.now()
-        last_collection_date = (now.year, now.month, now.day)
+        forecast_date = (now.year, now.month, now.day)
 
     parsed_url = urlparse(DATA_SOURCE)
     save_path = (
@@ -127,7 +127,7 @@ def load_metadata(
         / parsed_url.netloc
         / parsed_url.path.lstrip("/").rsplit(".", 1)[0]
     )
-    # TODO: should cache save path incorporate `last_collection_date`?
+    # TODO: should cache save path incorporate `forecast_date`?
 
     # Download the data if necessary
     if redownload or not os.path.exists(save_path):
@@ -167,7 +167,7 @@ def load_metadata(
         .cast({"date": pl.Date}, strict=False)
         .filter(
             pl.col("date").is_not_null(),
-            pl.col("date") <= pl.date(*last_collection_date),
+            pl.col("date") <= pl.date(*forecast_date),
             pl.col("division").is_in(INCLUDED_DIVISIONS),
             country="USA",
             host="Homo sapiens",
@@ -178,11 +178,11 @@ def load_metadata(
         .group_by("lineage", "date", "division")
         .agg(pl.len().alias("count"))
         .with_columns(
-            lcd_offset=(
-                pl.col("date") - pl.date(*last_collection_date)
+            fd_offset=(
+                pl.col("date") - pl.date(*forecast_date)
             ).dt.total_days()
         )
-        .select("date", "lcd_offset", "division", "lineage", "count")
+        .select("date", "fd_offset", "division", "lineage", "count")
     )
 
     print(" done.", file=sys.stderr, flush=True)
@@ -192,7 +192,7 @@ def load_metadata(
 
 if __name__ == "__main__":
     data = load_metadata()
-    # TODO: an argparse setup to specify `last_collection_date`
+    # TODO: an argparse setup to specify `forecast_date`
 
     print(data.collect().write_csv(), end="")
     print("\nSuccess.", file=sys.stderr)

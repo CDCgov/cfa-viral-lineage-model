@@ -25,13 +25,13 @@ if len(sys.argv) != 2:
 
 data = (
     pl.read_csv(sys.argv[1], try_parse_dates=True)
-    .pivot(on="lineage", index=["lcd_offset", "division"], values="count")
+    .pivot(on="lineage", index=["fd_offset", "division"], values="count")
     .fill_null(0)
 )
 
 # Extract count matrix, division indices, and time covariate
 
-counts = data.select(sorted(data.columns)).drop("lcd_offset", "division")
+counts = data.select(sorted(data.columns)).drop("fd_offset", "division")
 division_names, divisions = np.unique(data["division"], return_inverse=True)
 
 
@@ -76,12 +76,12 @@ samples = (
 print(
     expand_grid(
         sample_index=samples["sample_index"].unique(),
-        lcd_offset=np.arange(-30, 15),
+        fd_offset=np.arange(-30, 15),
     )
     .join(samples, on="sample_index")
     .with_columns(
         phi=pl_softmax(pl.col("logit_phi")).over(
-            "sample_index", "division", "lcd_offset"
+            "sample_index", "division", "fd_offset"
         )
     )
     .drop("logit_phi")

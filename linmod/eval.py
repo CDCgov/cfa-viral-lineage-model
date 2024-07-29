@@ -10,7 +10,7 @@ def proportions_mae_per_division_day(samples, data) -> pl.DataFrame:
     `samples` should have the standard model output format.
     `data` should have the standard model input format.
 
-    Returns a DataFrame with columns `(lineage, division, lcd_offset, mae)`.
+    Returns a DataFrame with columns `(lineage, division, fd_offset, mae)`.
     """
 
     return (
@@ -18,20 +18,20 @@ def proportions_mae_per_division_day(samples, data) -> pl.DataFrame:
             data.with_columns(
                 phi=(
                     pl.col("count")
-                    / pl.sum("count").over("division", "lcd_offset")
+                    / pl.sum("count").over("division", "fd_offset")
                 ),
             )
             .drop("count")
             .join(
                 samples,
-                on=("lineage", "division", "lcd_offset"),
+                on=("lineage", "division", "fd_offset"),
                 how="left",
                 suffix="_sampled",
             )
         )
-        .group_by("lineage", "division", "lcd_offset")
+        .group_by("lineage", "division", "fd_offset")
         .agg(mae=pl_mae("phi", "phi_sampled"))
-        .group_by("division", "lcd_offset")
+        .group_by("division", "fd_offset")
         .agg(pl.sum("mae"))
     )
 
