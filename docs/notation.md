@@ -46,10 +46,10 @@ The latent, unobservable _true_ frequency of lineage $\ell$ in the population is
 - Model it as if it were continuous.
 - Absent a notion of space or time, denote it $\phi$ (for _frequency_).
 - Spatiotemporal slices of all space x time x lineage combinations allow us to refer to $\boldsymbol{\phi}$ and $\boldsymbol{\Phi}$. We use
-    - $\boldsymbol{\phi}_{t g}$ for all _lineages_ at some time in some group.
-    - $\boldsymbol{\Phi}_t$ for all _lineages_ in all _groups_ at some time
-    - $\boldsymbol{\Phi}$ for all lineages in all groups at all times.
-    - The order of precedence of subscripts is lineage $l$, time $t$, and group $g$. For one single element, we have $\phi_{t g \ell}$.
+  - $\boldsymbol{\phi}_{t g}$ for all _lineages_ at some time in some group.
+  - $\boldsymbol{\Phi}_t$ for all _lineages_ in all _groups_ at some time
+  - $\boldsymbol{\Phi}$ for all lineages in all groups at all times.
+  - The order of precedence of subscripts is lineage $l$, time $t$, and group $g$. For one single element, we have $\phi_{t g \ell}$.
 
 ### Data and covariates
 
