@@ -1,13 +1,12 @@
 """
 Usage: `python3 -m linmod.data`
 
-Download the Nextstrain metadata file, preprocess it,
-keeping only the divisions specified by the file data/included-divisions.txt,
-and print the result to `stdout`.
+Download the Nextstrain metadata file, preprocess it, and print the result to `stdout`.
 
-The output is given in CSV format, with columns `lineage`, `date`, `lcd_offset`,
-`division`, and `count`. Rows are uniquely identified by `(lineage, date, division)`.
-The `lcd_offset` column is the number of days between the last collection date
+The output is given in CSV format, with columns `date`, `lcd_offset`, `division`,
+`lineage`, `count`. Rows are uniquely identified by `(date, division, lineage)`.
+`date` and `lcd_offset` can be computed from each other, given the forecast date;
+the `lcd_offset` column is the number of days between the last collection date
 (defaults to today) and the `date` column.
 
 Preprocessing is done to ensure that:
@@ -111,10 +110,11 @@ def load_metadata(
     Download the metadata file, preprocess it, and return a `polars.DataFrame`.
 
     The data is filtered to include only the most recent `NUM_DAYS` days of sequences
-    collected by `last_collection_date`, specified as a tuple `(year, month, day)`.
-    The column specified by `LINEAGE_COLUMN_NAME` is renamed to `lineage`.
-    The unprocessed (but decompressed) data is cached in the `CACHE_DIRECTORY`.
-    If `redownload`, the data is redownloaded, and the cache is replaced.
+    collected by `last_collection_date`, specified as a tuple `(year, month, day)`
+    (defaulting to today's date if not specified). The column specified by
+    `LINEAGE_COLUMN_NAME` is renamed to `lineage`. The unprocessed (but decompressed)
+    data is cached in the `CACHE_DIRECTORY`. If `redownload`, the data is redownloaded,
+    and the cache is replaced.
     """
 
     if last_collection_date is None:
@@ -134,16 +134,20 @@ def load_metadata(
         print("Downloading...", file=sys.stderr, flush=True, end="")
 
         save_path.parent.mkdir(parents=True, exist_ok=True)
+
         with urlopen(DATA_SOURCE) as response, save_path.open(
             "wb"
         ) as out_file:
             if parsed_url.path.endswith(".gz"):
                 with lzma.open(response) as in_file:
                     out_file.write(in_file.read())
+
             elif parsed_url.path.endswith(".zst"):
                 decompressor = zstandard.ZstdDecompressor()
+
                 with decompressor.stream_reader(response) as reader:
                     out_file.write(reader.readall())
+
             else:
                 raise ValueError(f"Unsupported file format: {parsed_url.path}")
 
@@ -178,7 +182,7 @@ def load_metadata(
                 pl.col("date") - pl.date(*last_collection_date)
             ).dt.total_days()
         )
-        .select("lineage", "date", "lcd_offset", "division", "count")
+        .select("date", "lcd_offset", "division", "lineage", "count")
     )
 
     print(" done.", file=sys.stderr, flush=True)

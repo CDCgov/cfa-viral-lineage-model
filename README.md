@@ -16,10 +16,11 @@ See the READMEs of individual folders in `exploration` for their specific workfl
 ### Architecture
 
 The model is provided with lightly-preprocessed data of variant sequences from humans in the USA, from [Nextstrain](https://docs.nextstrain.org/projects/ncov/en/latest/reference/remote_inputs.html) ([data dictionary](https://docs.nextstrain.org/projects/ncov/en/latest/reference/metadata-fields.html)).
-A CSV is provided, with columns `lineage`, `date`, `division`, `count`.
-Rows are uniquely identified by `(lineage, date, division)`.
+A CSV is provided, with columns `date`, `lcd_offset`, `division`, `lineage`, `count`.
+Rows are uniquely identified by `(date, division, lineage)`.
+`date` and `lcd_offset` can be computed from each other, given the forecast date.
 
-Note that `date` is the sample collection date. `LCD` refers to the latest collection date (i.e. forecast date). Sequences are filtered to have a collection date no later than this
+Note that `date` is the sample collection date. `lcd` refers to the latest collection date (i.e. forecast date). Sequences are filtered to have a collection date no later than the forecast date.
 
 | date       | lcd_offset | division     | lineage | count |
 | ---------- | ---------- | ------------ | ------- | ----- |
@@ -28,8 +29,8 @@ Note that `date` is the sample collection date. `LCD` refers to the latest colle
 | ...        | ...        | ...          | ...     | ...   |
 
 The model must output samples of population-level lineage proportions.
-A CSV should be provided, with columns `division`, `lineage`, `day`, `sample_index`, and `phi`, for `day = -30, ..., 14`, where `day = 0` is the day of data download.
-Rows are uniquely identified by `(division, lineage, day, sample_index)`.
+A CSV should be provided, with columns `lcd_offset`, `division`, `lineage`, `sample_index`, and `phi`, for `lcd_offset = -30, ..., 14`.
+Rows are uniquely identified by `(lcd_offset, division, lineage, sample_index)`.
 
 | lcd_offset | division | lineage | sample_index | phi            |
 | ---------- | -------- | ------- | ------------ | -------------- |
