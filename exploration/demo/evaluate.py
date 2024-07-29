@@ -22,7 +22,10 @@ data = pl.scan_csv(sys.argv[1], try_parse_dates=True)
 
 scores = {}
 
-for samples_file in os.listdir("out/"):
+for samples_file in filter(
+    lambda path: path.endswith(".csv"),
+    os.listdir("out/"),
+):
     samples_file = Path("out") / samples_file
     samples = pl.scan_csv(samples_file)
 

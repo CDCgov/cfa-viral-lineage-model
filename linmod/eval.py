@@ -31,7 +31,7 @@ def proportions_mae_per_division_day(samples, data) -> pl.DataFrame:
         )
         .group_by("lineage", "division", "lcd_offset")
         .agg(mae=pl_mae("phi", "phi_sampled"))
-        .group_by("division", "day")
+        .group_by("division", "lcd_offset")
         .agg(pl.sum("mae"))
     )
 
@@ -42,5 +42,8 @@ def proportions_mae(
     """MAE on phi, summed over all lineages, divisions, and days"""
 
     return (
-        proportions_mae(sample, data).collect().get_columns(score_column).sum()
+        proportions_mae_per_division_day(sample, data)
+        .collect()
+        .get_column(score_column)
+        .sum()
     )
