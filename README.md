@@ -20,7 +20,7 @@ A CSV is provided, with columns `date`, `fd_offset`, `division`, `lineage`, `cou
 Rows are uniquely identified by `(date, division, lineage)`.
 `date` and `fd_offset` can be computed from each other, given the forecast date.
 
-Note that `date` is the sample collection date. `fd` refers to the forecast date. Sequences are filtered to have a collection date no later than the forecast date.
+Note that `date` is the sample collection date. `fd` refers to the forecast date. `fd_offset` is `date - fd` measured in days. Sequences are filtered to have a collection date no later than the forecast date.
 
 | date       | fd_offset | division     | lineage | count |
 | ---------- | ---------- | ------------ | ------- | ----- |
@@ -29,7 +29,7 @@ Note that `date` is the sample collection date. `fd` refers to the forecast date
 | ...        | ...        | ...          | ...     | ...   |
 
 The model must output samples of population-level lineage proportions.
-A CSV should be provided, with columns `fd_offset`, `division`, `lineage`, `sample_index`, and `phi`, for `fd_offset = -30, ..., 14`.
+A CSV should be provided, with columns `fd_offset`, `division`, `lineage`, `sample_index`, and `phi` (the population proportion), for `fd_offset = -30, ..., 14`.
 Rows are uniquely identified by `(fd_offset, division, lineage, sample_index)`.
 
 | fd_offset | division | lineage | sample_index | phi            |
