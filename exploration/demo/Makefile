@@ -1,15 +1,22 @@
 METADATA=metadata.csv
+SAMPLE_FILES=out/samples-baseline.csv out/samples-id.csv
 
-.PHONY: all
+.PHONY: all clean
 
-all: $(METADATA)
-	python evaluate.py $<
+all: results.txt
+
+results.txt: $(METADATA) $(SAMPLE_FILES)
+	python3 evaluate.py $< > $@
 
 out/samples-baseline.csv: fit_baseline_model.py $(METADATA)
-	python $< > $@
+	python3 $< $(METADATA) > $@
 
 out/samples-id.csv: fit_indep_div_model.py $(METADATA)
-	python $< $(METADATA) > $@
+	python3 $< $(METADATA) > $@
 
-$(METADATA): ../../data/load_metadata.py
-	python $< > $@
+$(METADATA): ../../linmod/data.py
+	python3 -m linmod.data > $@
+
+clean:
+	rm -f $(METADATA) $(SAMPLE_FILES) results.txt
+	rm -rf .cache/*

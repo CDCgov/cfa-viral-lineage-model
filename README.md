@@ -8,11 +8,66 @@ This repo hosts work on modeling how the composition of viral lineages, such as 
 
 The repo has the following structure:
 
-- `data/`, with a script for downloading raw data;
-- `linmod/`, with a package for fitting and evaluating models with this data; and
+- `linmod/`, with a package for downloading lineage count data, and fitting and evaluating models with this data; and
 - `exploration/`, with folders of analyses using this infrastructure.
 
 See the READMEs of individual folders in `exploration` for their specific workflows.
+
+### Architecture
+
+The model is provided with lightly-preprocessed data of variant sequences from humans in the USA, from [Nextstrain](https://docs.nextstrain.org/projects/ncov/en/latest/reference/remote_inputs.html) ([data dictionary](https://docs.nextstrain.org/projects/ncov/en/latest/reference/metadata-fields.html)).
+A CSV is provided, with columns `date`, `fd_offset`, `division`, `lineage`, `count`.
+Rows are uniquely identified by `(date, division, lineage)`.
+`date` and `fd_offset` can be computed from each other, given the forecast date.
+
+Note that `date` is the sample collection date. `fd` refers to the forecast date. `fd_offset` is `date - fd` measured in days. Sequences are filtered to have a collection date no later than the forecast date.
+
+| date       | fd_offset | division     | lineage | count |
+| ---------- | ---------- | ------------ | ------- | ----- |
+| 2024-05-07 | -12        | Arizona      | 24A     | 1     |
+| 2024-05-04 | -15        | Pennsylvania | 24A     | 2     |
+| ...        | ...        | ...          | ...     | ...   |
+
+The model must output samples of population-level lineage proportions.
+A CSV should be provided, with columns `fd_offset`, `division`, `lineage`, `sample_index`, and `phi` (the population proportion), for `fd_offset = -30, ..., 14`.
+Rows are uniquely identified by `(fd_offset, division, lineage, sample_index)`.
+
+| fd_offset | division | lineage | sample_index | phi            |
+| ---------- | -------- | ------- | ------------ | -------------- |
+| -30        | Alabama  | 22B     | 1            | 0.000014979599 |
+| -30        | Alabama  | 22B     | 2            | 9.945703e-7    |
+| ...        | ...      | ...     | ...          | ...            |
+
+
+## Milestones & timeline
+
+Must-haves
+- [x] (1) Implement baseline and starter models
+	- Regression assuming spatial independence, no time covariate
+	- Regression assuming spatial independence and a time covariate
+- [x] (2) Design simulation study to verify model implementation
+- [ ] (3) Implement a metric to evaluate population-level lineage domination time predictions in a retrospective setting
+	- Answer two questions: will lineage X take off? Given that lineage X takes off, at what time point does it reach 50% phi?
+- [ ] (4) Prepare for symposium & friends
+
+Wishlist
+- [ ] (5) Can we obtain lineage growth rates in a model-agnostic way, from only posterior samples of population-level lineage proportions?
+- [ ] (6) Implement more advanced model and simulation study to verify
+	- Regression with information sharing over space
+- [ ] (7) Study more on how to set priors on the logit scale to induce priors on the probability simplex
+- [ ] (8) Does our ability to identify "good" models change if we evaluate daily vs weekly predictions?
+
+| Sprint | Start Date | Target milestones | Notes                            |
+| ------ | ---------- | ----------------- | -------------------------------- |
+| L      | Jun 10     | 1                 |                                  |
+| M      | Jun 24     | 1, 2              |                                  |
+| N      | Jul 08     | 2, 3              |                                  |
+| O      | Jul 22     | 3, 4              |                                  |
+| P      | Aug 05     | 4, 5              | Thanasi at JSM for one week here |
+| Q      | Aug 19     | 4, 5              |                                  |
+| R      | Sep 2      | 6                 |                                  |
+| S      | Sep 16     |                   |                                  |
+
 
 ## General Disclaimer
 This repository was created for use by CDC programs to collaborate on public health related projects in support of the [CDC mission](https://www.cdc.gov/about/organization/mission.htm).  GitHub is not hosted by the CDC, but is a third party website used by CDC and its partners to share information and collaborate on software. CDC use of GitHub does not imply an endorsement of any one particular service, product, or enterprise.

@@ -1,18 +1,21 @@
+#!/usr/bin/env python3
+
 import os
 from pathlib import Path
 
 import polars as pl
 
-from linmod.eval import plot_samples
+from linmod.visualize import plot_samples
 
-for samples_file in os.listdir("out/"):
-    name = Path(samples_file).stem
-    samples = pl.scan_csv(samples_file).drop_nulls()
-    # TODO: where is the row of nulls coming from
+for samples_file in filter(
+    lambda path: path.endswith(".csv"),
+    os.listdir("out/"),
+):
+    samples_file = Path("out") / samples_file
 
-    p = plot_samples(samples.collect())
+    p = plot_samples(pl.read_csv(samples_file))
     p.save(
-        f"out/trajectories-{name}.png",
+        f"out/trajectories-{samples_file.stem}.png",
         width=40,
         height=30,
         dpi=300,

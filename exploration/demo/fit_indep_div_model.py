@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import sys
-from pathlib import Path
 
 import jax
 import numpy as np
@@ -25,20 +24,16 @@ if len(sys.argv) != 2:
     sys.exit(1)
 
 data = (
-    pl.read_csv(Path(sys.argv[1]))
-    .cast({"date": pl.Date}, strict=False)
-    .drop_nulls(subset=["date"])  # Drop dates that aren't resolved to the day
-    .filter(pl.col("date") >= pl.col("date").max() - 90)
-    .select(["lineage", "date", "count", "division"])
-    .pivot(on="lineage", index=["date", "division"], values="count")
+    pl.read_csv(sys.argv[1], try_parse_dates=True)
+    .pivot(on="lineage", index=["fd_offset", "division"], values="count")
     .fill_null(0)
 )
 
 # Extract count matrix, division indices, and time covariate
 
-counts = data.select(sorted(data.columns)).drop(["date", "division"])
+counts = data.select(sorted(data.columns)).drop("fd_offset", "division")
 division_names, divisions = np.unique(data["division"], return_inverse=True)
-time = (data["date"] - data["date"].min()).dt.total_days().to_numpy()
+time = data["fd_offset"].to_numpy()
 
 
 def time_standardizer(t):
@@ -88,16 +83,16 @@ samples = (
 print(
     expand_grid(
         sample_index=samples["sample_index"].unique(),
-        day=np.arange(-30, 15),
+        fd_offset=np.arange(-30, 15),
     )
     .join(samples, on="sample_index")
     .with_columns(
         phi=pl_softmax(
             pl.col("beta_0")
-            + pl.col("beta_1")
-            * time_standardizer(time.max().item() + pl.col("day")),
-        ).over("sample_index", "division", "day")
+            + pl.col("beta_1") * time_standardizer(pl.col("fd_offset")),
+        ).over("sample_index", "division", "fd_offset")
     )
     .drop("beta_0", "beta_1")
-    .write_csv()
+    .write_csv(),
+    end="",
 )
