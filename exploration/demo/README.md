@@ -9,3 +9,5 @@ Current workflow, from top-level of repo:
     3. `./fit_baseline_model.py metadata.csv > out/samples-baseline.csv`
     4. `./fit_indep_div_model.py metadata.csv > out/samples-id.csv`
 3. Evaluate models with `./evaluate.py metadata.csv`
+
+Or, run `make`

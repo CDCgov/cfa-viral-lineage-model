@@ -2,14 +2,14 @@ METADATA=metadata.csv
 
 .PHONY: all
 
-all: $(METADATA)
-	python evaluate.py $<
+all: $(METADATA) out/samples-baseline.csv out/samples-id.csv
+	python3 evaluate.py $<
 
 out/samples-baseline.csv: fit_baseline_model.py $(METADATA)
-	python $< > $@
+	python3 $< $(METADATA) > $@
 
 out/samples-id.csv: fit_indep_div_model.py $(METADATA)
-	python $< $(METADATA) > $@
+	python3 $< $(METADATA) > $@
 
-$(METADATA): ../../data/load_metadata.py
-	python $< > $@
+$(METADATA): ../../linmod/data.py
+	python3 -m linmod.data > $@
