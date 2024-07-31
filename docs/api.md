@@ -1,3 +1,7 @@
 # API reference
 
-::: linmod
+::: linmod.models
+
+::: linmod.eval
+
+::: linmod.visualize
