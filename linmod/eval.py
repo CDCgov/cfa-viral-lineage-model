@@ -1,6 +1,6 @@
 import polars as pl
 
-from linmod.utils import pl_norm
+from linmod.utils import pl_list_cycle, pl_norm
 
 
 def _merge_samples_and_data(samples, data):
@@ -50,7 +50,7 @@ def proportions_mean_norm(sample, data, L=1) -> float:
     )
 
 
-def proportions_energy_score_per_division_day(samples, data):
+def proportions_energy_score_per_division_day(samples, data, L=2):
     """
     Monte Carlo approximation to the energy score (multivariate generalization of CRPS)
     of phi for each division-day.
@@ -61,27 +61,23 @@ def proportions_energy_score_per_division_day(samples, data):
     Returns a DataFrame with columns `(division, fd_offset, energy_score)`.
     """
 
+    # First, we will gather the values of phi' we will use for (phi-phi')
+    samples = (
+        samples.group_by("fd_offset", "division", "lineage")
+        .agg(pl.col("sample_index"), pl.col("phi"))
+        .with_columns(
+            sample_index=pl_list_cycle(pl.col("sample_index"), 1),
+            replicate=pl_list_cycle(pl.col("phi"), 1),
+        )
+        .explode("sample_index", "phi", "replicate")
+    )
+
     return (
         _merge_samples_and_data(samples, data)
-        .with_columns(
-            # Gather the values of X' we will use for (X-X')
-            replicate=pl.col("phi_sampled")
-            .shift(1)
-            .over("fd_offset", "division", "lineage"),
-        )
         .group_by("sample_index", "division", "fd_offset")
         .agg(
-            term1=pl_norm(pl.col("phi") - pl.col("phi_sampled"), 2),
-            # Note that the expected value for term2 is over n-1 pairs,
-            # and the nth pair has replicate==null. However, polars will
-            # silently drop the null, resulting in term2==0 for the nth pair.
-            # To avoid this, we force term2 to null for the nth pair, so
-            # that the expected value drops the null and is taken over n-1 samples.
-            term2=pl.when(pl.col("replicate").has_nulls())
-            .then(None)
-            .otherwise(
-                pl_norm((pl.col("phi_sampled") - pl.col("replicate")), 2)
-            ),
+            term1=pl_norm(pl.col("phi") - pl.col("phi_sampled"), L),
+            term2=pl_norm((pl.col("phi_sampled") - pl.col("replicate")), L),
         )
         .group_by("division", "fd_offset")
         .agg(
@@ -90,11 +86,11 @@ def proportions_energy_score_per_division_day(samples, data):
     )
 
 
-def proportions_energy_score(sample, data) -> float:
+def proportions_energy_score(sample, data, L=2) -> float:
     """The energy score of phi, summed over all divisions and days."""
 
     return (
-        proportions_energy_score_per_division_day(sample, data)
+        proportions_energy_score_per_division_day(sample, data, L=L)
         .collect()
         .get_column("energy_score")
         .sum()
