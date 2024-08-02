@@ -7,13 +7,13 @@ def _merge_samples_and_data(samples, data):
     return (
         data.with_columns(
             phi=(
-                pl.col("count") / pl.sum("count").over("division", "fd_offset")
+                pl.col("count") / pl.sum("count").over("fd_offset", "division")
             ),
         )
         .drop("count")
         .join(
             samples,
-            on=("lineage", "division", "fd_offset"),
+            on=("fd_offset", "division", "lineage"),
             how="left",
             suffix="_sampled",
         )
@@ -21,8 +21,10 @@ def _merge_samples_and_data(samples, data):
 
 
 def proportions_mean_norm_per_division_day(samples, data, L=1):
-    """
-    The expected norm of phi error for each division-day.
+    r"""
+    The expected norm of proportion forecast error for each division-day.
+
+    $E[ || f_{tg} - \phi_{tg} ||_L ]$
 
     `samples` should have the standard model output format.
     `data` should have the standard model input format.
@@ -32,15 +34,19 @@ def proportions_mean_norm_per_division_day(samples, data, L=1):
 
     return (
         _merge_samples_and_data(samples, data)
-        .group_by("sample_index", "division", "fd_offset")
+        .group_by("fd_offset", "division", "sample_index")
         .agg(norm=pl_norm(pl.col("phi") - pl.col("phi_sampled"), L))
-        .group_by("division", "fd_offset")
+        .group_by("fd_offset", "division")
         .agg(mean_norm=pl.mean("norm"))
     )
 
 
 def proportions_mean_norm(sample, data, L=1) -> float:
-    """The expected norm of phi error, summed over all divisions and days."""
+    r"""
+    The expected norm of proportion forecast error, summed over all divisions and days.
+
+    $\sum_{t, g} E[ || f_{tg} - \phi_{tg} ||_L ]$
+    """
 
     return (
         proportions_mean_norm_per_division_day(sample, data, L=L)
@@ -51,9 +57,11 @@ def proportions_mean_norm(sample, data, L=1) -> float:
 
 
 def proportions_energy_score_per_division_day(samples, data, L=2):
-    """
+    r"""
     Monte Carlo approximation to the energy score (multivariate generalization of CRPS)
-    of phi for each division-day.
+    of proportion forecasts for each division-day.
+
+    $E[ || f_{tg} - \phi_{tg} ||_L ] - \frac{1}{2} E[ || f_{tg} - \f_{tg}' ||_L ]$
 
     `samples` should have the standard model output format.
     `data` should have the standard model input format.
@@ -74,12 +82,12 @@ def proportions_energy_score_per_division_day(samples, data, L=2):
 
     return (
         _merge_samples_and_data(samples, data)
-        .group_by("sample_index", "division", "fd_offset")
+        .group_by("fd_offset", "division", "sample_index")
         .agg(
             term1=pl_norm(pl.col("phi") - pl.col("phi_sampled"), L),
             term2=pl_norm((pl.col("phi_sampled") - pl.col("replicate")), L),
         )
-        .group_by("division", "fd_offset")
+        .group_by("fd_offset", "division")
         .agg(
             energy_score=pl.col("term1").mean() - 0.5 * pl.col("term2").mean()
         )
@@ -87,7 +95,11 @@ def proportions_energy_score_per_division_day(samples, data, L=2):
 
 
 def proportions_energy_score(sample, data, L=2) -> float:
-    """The energy score of phi, summed over all divisions and days."""
+    r"""
+    The energy score of proportion forecasts, summed over all divisions and days.
+
+    $\sum_{t, g} E[ || f_{tg} - \phi_{tg} ||_L ] - \frac{1}{2} E[ || f_{tg} - \f_{tg}' ||_L ]$
+    """
 
     return (
         proportions_energy_score_per_division_day(sample, data, L=L)
