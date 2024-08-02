@@ -89,7 +89,7 @@ def test_proportions_mean_L1_norm(
     # The MAE of a normal random variable from its mean is $\sigma \sqrt{2/\pi}$.
 
     assert np.isclose(
-        eval.proportions_mean_norm(samples, data, L=1),
+        eval.proportions_mean_norm(samples, data, p=1),
         np.sqrt(sample_variance * 2 / np.pi)
         * NUM_DAYS
         * NUM_DIVISIONS
@@ -156,7 +156,7 @@ def test_proportions_mean_L1_norm2():
     )
 
     result = eval.proportions_mean_norm_per_division_day(
-        samples, data, L=1
+        samples, data, p=1
     ).collect()
 
     assert_frame_equal(
@@ -224,7 +224,7 @@ def test_proportions_L1_energy_score(
     )
 
     assert np.isclose(
-        eval.proportions_energy_score(samples, data, L=1),
+        eval.proportions_energy_score(samples, data, p=1),
         term1 - 0.5 * term2,
         atol=atol,
     )
@@ -328,7 +328,7 @@ def test_proportions_L1_energy_score2():
     )
 
     result = eval.proportions_energy_score_per_division_day(
-        samples, data, L=1
+        samples, data, p=1
     ).collect()
 
     assert_frame_equal(
