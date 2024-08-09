@@ -13,23 +13,17 @@ def expand_grid(**columns):
     return df.sort(columns.keys())
 
 
-def pl_crps(samples_column: str, truth_column: str):
-    """
-    Monte Carlo approximation to the CRPS.
-    """
+def pl_list_cycle(pl_expr, n: int):
+    assert n > 0
 
-    samples = pl.col(samples_column)
-    truth = pl.col(truth_column)
-    n = samples.len()
+    return pl_expr.list.tail(n).list.concat(
+        pl_expr.list.head(pl_expr.list.len() - n)
+    )
 
-    return (samples - truth).abs().mean() - 0.5 * (
-        samples.head(n - 1) - samples.tail(n - 1)
-    ).abs().mean()
+
+def pl_norm(pl_expr, L: int):
+    return pl_expr.abs().pow(L).sum().pow(1 / L)
 
 
 def pl_softmax(pl_expr):
     return pl_expr.exp() / pl_expr.exp().sum()
-
-
-def pl_mae(samples_column: str, truth_column: str):
-    return (pl.col(samples_column) - pl.col(truth_column)).abs().mean()
