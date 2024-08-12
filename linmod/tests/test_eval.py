@@ -86,8 +86,8 @@ def test_proportions_mean_L1_norm(
 
     # Because we use L1 norm, this metric is equal to the sum of each component's MAE
     # from its mean.
-    # The MAE of a normal random variable from its mean is $\sigma \sqrt{\frac{2}{\pi}}$
-    # (because $X - \mu \sim N(0, \sigma^2)$, so
+    # The mean absolute error of a normal random variable from its mean is
+    # $\sigma \sqrt{\frac{2}{\pi}}$ (because $X - \mu \sim N(0, \sigma^2)$, so
     # $|X - \mu| \sim \text{half-normal}(\sigma)$, which has this mean).
 
     assert np.isclose(
@@ -207,8 +207,8 @@ def test_proportions_L1_energy_score(
 
     # Because we use L1 norm, term 1 is equal to the sum of each component's MAE from
     # its mean.
-    # The MAE of a normal random variable from its mean is $\sigma \sqrt{\frac{2}{\pi}}$
-    # (because $X - \mu \sim N(0, \sigma^2)$, so
+    # The mean absolute error of a normal random variable from its mean is
+    # $\sigma \sqrt{\frac{2}{\pi}}$ (because $X - \mu \sim N(0, \sigma^2)$, so
     # $|X - \mu| \sim \text{half-normal}(\sigma)$, which has this mean).
 
     term1 = (
@@ -220,7 +220,7 @@ def test_proportions_L1_energy_score(
 
     # Because we use L1 norm, term 2 is equal to the sum of each component's MAE from
     # an independent copy of itself.
-    # The MAE of a normal random variable from an independent copy is
+    # The mean absolute error of a normal random variable from an independent copy is
     # $\frac{2\sigma}{\sqrt{\pi}}$ (because $X - X' \sim N(0, 2 \sigma^2)$, so
     # $|X - X'| \sim \text{half-normal}(\sqrt{2} \sigma)$, which has this mean).
 
