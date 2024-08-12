@@ -86,7 +86,9 @@ def test_proportions_mean_L1_norm(
 
     # Because we use L1 norm, this metric is equal to the sum of each component's MAE
     # from its mean.
-    # The MAE of a normal random variable from its mean is $\sigma \sqrt{2/\pi}$.
+    # The MAE of a normal random variable from its mean is $\sigma \sqrt{\frac{2}{\pi}}$
+    # (because $X - \mu \sim N(0, \sigma^2)$, so
+    # $|X - \mu| \sim \text{half-normal}(\sigma)$, which has this mean).
 
     assert np.isclose(
         eval.proportions_mean_norm(samples, data, p=1),
@@ -179,8 +181,10 @@ def test_proportions_L1_energy_score(
     - Generate fake data $Y_{tgl} \sim Uniform{0, ..., 99}$
     - Denote true proportion as $\phi_{tgl} = \frac{Y_{tgl}}{Y_{tg \cdot}}$
     - Generate fake "forecasts" $f_{tgl} \sim N(\phi_{tgl}, \sigma^2)$
-    - Check $\sum_{t, g} E[ || f_{tg} - \phi_{tg} ||_2 ] - \frac{1}{2} E[ || f_{tg} - \f_{tg}' ||_2 ]$
-      as reported by `eval.proportions_energy_score`
+    - Check $$
+        \sum_{t, g} E[ || f_{tg} - \phi_{tg} ||_2 ]
+        - \frac{1}{2} E[ || f_{tg} - f_{tg}' ||_2 ]
+      $$ as reported by `eval.proportions_energy_score`
 
     Note that our "forecasts" are not actually proportions, but independent normal
     random variables. This is so that the quantity can be computed analytically.
@@ -203,7 +207,9 @@ def test_proportions_L1_energy_score(
 
     # Because we use L1 norm, term 1 is equal to the sum of each component's MAE from
     # its mean.
-    # The MAE of a normal random variable from its mean is $\sigma \sqrt{\frac{2}{\pi}}$.
+    # The MAE of a normal random variable from its mean is $\sigma \sqrt{\frac{2}{\pi}}$
+    # (because $X - \mu \sim N(0, \sigma^2)$, so
+    # $|X - \mu| \sim \text{half-normal}(\sigma)$, which has this mean).
 
     term1 = (
         np.sqrt(2 * sample_variance / np.pi)
@@ -214,7 +220,9 @@ def test_proportions_L1_energy_score(
 
     # Because we use L1 norm, term 2 is equal to the sum of each component's MAE from
     # an independent copy of itself.
-    # The MAE of a normal random variable from an independent copy is $\frac{2\sigma}{\sqrt{\pi}}$.
+    # The MAE of a normal random variable from an independent copy is
+    # $\frac{2\sigma}{\sqrt{\pi}}$ (because $X - X' \sim N(0, 2 \sigma^2)$, so
+    # $|X - X'| \sim \text{half-normal}(\sqrt{2} \sigma)$, which has this mean).
 
     term2 = (
         (2 * np.sqrt(sample_variance / np.pi))
