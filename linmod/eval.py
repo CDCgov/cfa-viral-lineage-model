@@ -4,7 +4,13 @@ from linmod.utils import pl_list_cycle, pl_norm
 
 
 def _merge_samples_and_data(samples, data):
-    return (
+    r"""
+    Join the forecast samples and raw data dataframes, assuming they have the
+    standard format.
+
+    Also compute the true proportions from the raw data.
+    """
+    result = (
         data.with_columns(
             phi=(
                 pl.col("count") / pl.sum("count").over("fd_offset", "division")
@@ -18,6 +24,10 @@ def _merge_samples_and_data(samples, data):
             suffix="_sampled",
         )
     )
+
+    assert result.shape == data.shape
+
+    return result
 
 
 def proportions_mean_norm_per_division_day(samples, data, p=1):
@@ -98,7 +108,10 @@ def proportions_energy_score(sample, data, p=2) -> float:
     r"""
     The energy score of proportion forecasts, summed over all divisions and days.
 
-    $\sum_{t, g} E[ || f_{tg} - \phi_{tg} ||_p ] - \frac{1}{2} E[ || f_{tg} - \f_{tg}' ||_p ]$
+    $$
+    \sum_{t, g} E[ || f_{tg} - \phi_{tg} ||_p ]
+    - \frac{1}{2} E[ || f_{tg} - f_{tg}' ||_p ]
+    $$
     """
 
     return (
