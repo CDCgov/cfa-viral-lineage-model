@@ -345,9 +345,3 @@ def test_proportions_L1_energy_score2():
         check_row_order=False,
         check_column_order=True,
     )
-
-
-test_proportions_mean_L1_norm()
-test_proportions_L1_energy_score()
-test_proportions_mean_L1_norm2()
-test_proportions_L1_energy_score2()
