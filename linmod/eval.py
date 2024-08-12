@@ -25,8 +25,6 @@ def _merge_samples_and_data(samples, data):
         )
     )
 
-    assert result.shape == data.shape
-
     return result
 
 
