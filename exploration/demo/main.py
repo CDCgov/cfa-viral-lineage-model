@@ -88,11 +88,8 @@ for metric_name in config["metrics"]:
 
 log("Success!")
 
-print(
-    pl.DataFrame(
-        scores,
-        schema=["Metric", "Model", "Score"],
-        orient="row",
-    ).write_csv(),
-    end="",
-)
+pl.DataFrame(
+    scores,
+    schema=["Metric", "Model", "Score"],
+    orient="row",
+).write_csv(config["paths"]["scores"]),
