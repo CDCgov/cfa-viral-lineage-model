@@ -12,20 +12,16 @@ from numpyro.infer import MCMC, NUTS
 
 import linmod.eval
 import linmod.models
+from linmod.utils import print_message
 from linmod.visualize import plot_forecast
 
 numpyro.set_host_device_count(4)
 
 
-def log(*args, **kwargs):
-    print(*args, **kwargs, file=sys.stderr)
-    sys.stderr.flush()
-
-
 # Load configuration
 
 if len(sys.argv) != 2:
-    log("Usage: python3 main.py <YAML config path>")
+    print_message("Usage: python3 main.py <YAML config path>")
     sys.exit(1)
 
 with open(sys.argv[1]) as f:
@@ -44,10 +40,10 @@ for model_name in config["forecasting"]["models"]:
     forecast_path = forecast_dir / f"forecasts_{model_name}.csv"
 
     if forecast_path.exists():
-        log(f"{model_name} fit already exists; reusing forecast.")
+        print_message(f"{model_name} fit already exists; reusing forecast.")
         continue
 
-    log(f"Fitting {model_name} model...")
+    print_message(f"Fitting {model_name} model...")
     model_class = linmod.models.__dict__[model_name]
     model = model_class(data)
 
@@ -77,7 +73,7 @@ for model_name in config["forecasting"]["models"]:
         limitsize=False,
     )
 
-    log("Done.")
+    print_message("Done.")
 
 # Evaluate each model
 
@@ -88,16 +84,18 @@ for metric_name in config["evaluation"]["metrics"]:
 
     for forecast_path in forecast_dir.glob("*.csv"):
         model_name = forecast_path.stem.split("-")[1]
-        log(f"Evaluating {model_name} model using {metric_name}...", end="")
+        print_message(
+            f"Evaluating {model_name} model using {metric_name}...", end=""
+        )
 
         forecast = pl.scan_csv(forecast_path)
         scores.append(
             (metric_name, model_name, metric_function(forecast, data.lazy()))
         )
 
-        log(" done.")
+        print_message(" done.")
 
-log("Success!")
+print_message("Success!")
 
 pl.DataFrame(
     scores,
