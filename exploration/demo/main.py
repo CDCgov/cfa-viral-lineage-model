@@ -47,7 +47,6 @@ data = pl.read_csv(sys.argv[1], try_parse_dates=True)
 FORECAST_DIR.mkdir(exist_ok=True)
 
 for model_name, model_class in MODELS.items():
-
     forecast_path = FORECAST_DIR / f"forecasts-{model_name}.csv"
 
     if forecast_path.exists():
