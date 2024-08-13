@@ -22,19 +22,11 @@ if len(sys.argv) != 2:
     )
     sys.exit(1)
 
-data = (
-    pl.read_csv(sys.argv[1], try_parse_dates=True)
-    .pivot(on="lineage", index=["fd_offset", "division"], values="count")
-    .fill_null(0)
-)
+data = pl.read_csv(sys.argv[1], try_parse_dates=True)
 
 # Infer parameters
 
-model = models.IndependentDivisionsModel(
-    divisions=data["division"],
-    time=data["fd_offset"],
-    counts=data.select(sorted(data.columns)).drop("fd_offset", "division"),
-)
+model = models.IndependentDivisionsModel(data)
 
 mcmc = MCMC(
     NUTS(model.numpyro_model),

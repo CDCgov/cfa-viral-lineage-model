@@ -49,7 +49,9 @@ def proportions_mean_norm_per_division_day(samples, data, p=1):
     )
 
 
-def proportions_mean_norm(sample, data, p=1) -> float:
+def proportions_mean_norm(
+    samples: pl.LazyFrame, data: pl.LazyFrame, p=1
+) -> float:
     r"""
     The expected norm of proportion forecast error, summed over all divisions and days.
 
@@ -57,7 +59,7 @@ def proportions_mean_norm(sample, data, p=1) -> float:
     """
 
     return (
-        proportions_mean_norm_per_division_day(sample, data, p=p)
+        proportions_mean_norm_per_division_day(samples, data, p=p)
         .collect()
         .get_column("mean_norm")
         .sum()
@@ -102,7 +104,9 @@ def proportions_energy_score_per_division_day(samples, data, p=2):
     )
 
 
-def proportions_energy_score(sample, data, p=2) -> float:
+def proportions_energy_score(
+    samples: pl.LazyFrame, data: pl.LazyFrame, p=2
+) -> float:
     r"""
     The energy score of proportion forecasts, summed over all divisions and days.
 
@@ -113,7 +117,7 @@ def proportions_energy_score(sample, data, p=2) -> float:
     """
 
     return (
-        proportions_energy_score_per_division_day(sample, data, p=p)
+        proportions_energy_score_per_division_day(samples, data, p=p)
         .collect()
         .get_column("energy_score")
         .sum()

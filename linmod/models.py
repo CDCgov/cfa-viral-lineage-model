@@ -117,42 +117,47 @@ class IndependentDivisionsModel:
     See https://doi.org/10.1101/2023.01.02.23284123
     No parameters are constrained here, so specific coefficients are not identifiable.
 
-    divisions:      A Series of division names for each observation.
-    time:           A Series of the time covariate for each observation.
-    counts:         A DataFrame of counts with shape (num_observations, num_lineages).
-                    Column names should correspond to lineage names.
-                    Set to `None` to use as a generative model.
+    data:           A DataFrame with the standard model input format.
     N:              A Series of total counts (across lineages) for each observation.
-                    Not required if providing observed `counts`.
-    num_lineages:   The number of lineages.
-                    Not required if providing observed `counts`.
+                    Only required if a generative model is desired; lineage counts will
+                    then be ignored.
+    num_lineages:   The number of lineages. Only required if a generative model is
+                    desired; lineage counts will then be ignored.
     """
 
     def __init__(
         self,
-        divisions: pl.Series,
-        time: pl.Series,
-        counts: pl.DataFrame | None = None,
+        data: pl.DataFrame,
         N: pl.Series | None = None,
         num_lineages: int | None = None,
     ):
-        if counts is None:
-            assert num_lineages is not None and N is not None
+        data = data.pivot(
+            on="lineage", index=["fd_offset", "division"], values="count"
+        ).fill_null(0)
+
+        self.lineage_names = sorted(
+            filter(lambda c: c not in ["fd_offset", "division"], data.columns)
+        )
+        self.division_names, self.divisions = np.unique(
+            data["division"], return_inverse=True
+        )
+        self.counts = data.select(self.lineage_names).to_numpy()
+
+        time = data["fd_offset"].to_numpy()
+        self._time_standardizer = lambda t: (t - time.mean()) / time.std()
+        self.time = self._time_standardizer(time)
+
+        if num_lineages is not None and N is not None:
             self.N = N.to_numpy()
             self.num_lineages = num_lineages
+            self.counts = None
         else:
-            assert num_lineages is None and N is None
-            self.N = counts.sum_horizontal().to_numpy()
-            self.num_lineages = counts.shape[1]
+            assert (
+                num_lineages is None and N is None
+            ), "To use as a generative model, supply both `num_lineages` and `N`."
 
-        self._time_standardizer = lambda t: (t - time.mean()) / time.std()
-
-        self.division_names, self.divisions = np.unique(
-            divisions, return_inverse=True
-        )
-        self.time = self._time_standardizer(time.to_numpy())
-        self.counts = counts.to_numpy()
-        self.lineage_names = counts.columns if counts is not None else None
+            self.N = self.counts.sum(axis=1)
+            self.num_lineages = self.counts.shape[1]
 
     def numpyro_model(self):
         with numpyro.plate_stack(
@@ -226,37 +231,43 @@ class BaselineModel:
     See https://doi.org/10.1101/2023.01.02.23284123
     No parameters are constrained here, so specific coefficients are not identifiable.
 
-    divisions:      A Series of division names for each observation.
-    counts:         A DataFrame of counts with shape (num_observations, num_lineages).
-                    Column names should correspond to lineage names.
-                    Set to `None` to use as a generative model.
+    data:           A DataFrame with the standard model input format.
     N:              A Series of total counts (across lineages) for each observation.
-                    Not required if providing observed `counts`.
-    num_lineages:   The number of lineages.
-                    Not required if providing observed `counts`.
+                    Only required if a generative model is desired; lineage counts will
+                    then be ignored.
+    num_lineages:   The number of lineages. Only required if a generative model is
+                    desired; lineage counts will then be ignored.
     """
 
     def __init__(
         self,
-        divisions: pl.Series,
-        counts: pl.DataFrame | None = None,
+        data: pl.DataFrame,
         N: pl.Series | None = None,
         num_lineages: int | None = None,
     ):
-        if counts is None:
-            assert num_lineages is not None and N is not None
+        data = data.pivot(
+            on="lineage", index=["fd_offset", "division"], values="count"
+        ).fill_null(0)
+
+        self.lineage_names = sorted(
+            filter(lambda c: c not in ["fd_offset", "division"], data.columns)
+        )
+        self.division_names, self.divisions = np.unique(
+            data["division"], return_inverse=True
+        )
+        self.counts = data.select(self.lineage_names).to_numpy()
+
+        if num_lineages is not None and N is not None:
             self.N = N.to_numpy()
             self.num_lineages = num_lineages
+            self.counts = None
         else:
-            assert num_lineages is None and N is None
-            self.N = counts.sum_horizontal().to_numpy()
-            self.num_lineages = counts.shape[1]
+            assert (
+                num_lineages is None and N is None
+            ), "To use as a generative model, supply both `num_lineages` and `N`."
 
-        self.division_names, self.divisions = np.unique(
-            divisions, return_inverse=True
-        )
-        self.counts = counts.to_numpy()
-        self.lineage_names = counts.columns if counts is not None else None
+            self.N = self.counts.sum(axis=1)
+            self.num_lineages = self.counts.shape[1]
 
     def numpyro_model(self):
         with numpyro.plate_stack(
