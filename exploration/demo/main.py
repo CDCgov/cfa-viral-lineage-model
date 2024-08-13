@@ -32,11 +32,11 @@ with open(sys.argv[1]) as f:
 
 # Load the data
 
-data = pl.read_csv(config["data_path"], try_parse_dates=True)
+data = pl.read_csv(config["paths"]["data"], try_parse_dates=True)
 
 # Fit each model
 
-forecast_dir = Path(config["forecast_dir"])
+forecast_dir = Path(config["paths"]["forecast_dir"])
 forecast_dir.mkdir(exist_ok=True)
 
 for model_name in config["models"]:
@@ -52,13 +52,19 @@ for model_name in config["models"]:
 
     mcmc = MCMC(
         NUTS(model.numpyro_model),
-        num_samples=500,
-        num_warmup=2500,
-        num_chains=4,
+        num_samples=config["mcmc"]["samples"],
+        num_warmup=config["mcmc"]["warmup"],
+        num_chains=config["mcmc"]["chains"],
     )
     mcmc.run(jax.random.key(0))
 
-    model.create_forecasts(mcmc, np.arange(-30, 15)).write_csv(forecast_path)
+    model.create_forecasts(
+        mcmc,
+        np.arange(
+            config["forecast_horizon"]["lower"],
+            config["forecast_horizon"]["upper"] + 1,
+        ),
+    ).write_csv(forecast_path)
 
     log("Done.")
 

@@ -1,8 +1,18 @@
-data_path: metadata.csv
+paths:
+  data: metadata.csv
+  forecast_dir: out/
+  scores: results.csv
 models:
   - BaselineModel
   - IndependentDivisionsModel
-forecast_dir: out/
+  - HierarchicalDivisionsModel
+mcmc:
+  warmup: 2500
+  samples: 500
+  chains: 4
+forecast_horizon:
+  lower: -30
+  upper: 14
 metrics:
   - proportions_mean_norm
   - proportions_energy_score
