@@ -3,14 +3,14 @@ FORECAST_DIR=out/
 
 .PHONY: all clean
 
-all: results.txt
+all: results.csv
 
-results.txt: $(METADATA)
+results.csv: $(METADATA)
 	python3 main.py $< > $@
 
 $(METADATA): ../../linmod/data.py
 	python3 -m linmod.data > $@
 
 clean:
-	rm -f $(METADATA) results.txt
+	rm -f $(METADATA) results.csv
 	rm -rf .cache/* $(FORECAST_DIR)

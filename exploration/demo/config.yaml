@@ -1,0 +1,8 @@
+data_path: metadata.csv
+models:
+  - BaselineModel
+  - IndependentDivisionsModel
+forecast_dir: out/
+metrics:
+  - proportions_mean_norm
+  - proportions_energy_score
