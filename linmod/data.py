@@ -1,22 +1,25 @@
 """
 Usage: `python3 -m linmod.data`
 
-Download the Nextstrain metadata file, preprocess it, and print the result to `stdout`.
+Download the Nextstrain metadata file, preprocess it, and export it.
 
 The output is given in CSV format, with columns `date`, `fd_offset`, `division`,
 `lineage`, `count`. Rows are uniquely identified by `(date, division, lineage)`.
 `date` and `fd_offset` can be computed from each other, given the forecast date;
-the `fd_offset` column is the number of days between the forecast date
-(defaults to today) and the `date` column.
+the `fd_offset` column is the number of days between the forecast date and the `date`
+column.
 
-Preprocessing is done to ensure that:
-- The most recent 90 days of sequences are included;
-- Observations without a recorded date are removed;
-- Only the 50 U.S. states, D.C., and Puerto Rico are included; and
+Preprocessing defaults to the following configuration, which can be overridden
+via a YAML file passed as an argument to the script (see `data.DEFAULT_CONFIG`):
+- The data is downloaded from
+  https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst;
+- Only the 90 most recent days of sequences since the forecast date are included,
+  where the forecast date defaults to today's date; and
+- Only the 50 U.S. states, D.C., and Puerto Rico are included.
+
+Furthermore:
+- Observations without a recorded date are removed; and
 - Only observations from human hosts are included.
-
-The data is downloaded from:
-https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst
 """
 
 import lzma
@@ -28,114 +31,116 @@ from urllib.parse import urlparse
 from urllib.request import urlopen
 
 import polars as pl
+import yaml
 import zstandard
 
-# Configuration
+from .utils import print_message
 
-# Where should the unprocessed (but decompressed) data be stored?
-CACHE_DIRECTORY = Path(".cache")
+"""
+Default configuration for data download, preprocessing, and export.
+"""
+DEFAULT_CONFIG = {
+    # Where should the data be downloaded from?
+    "source": "https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst",
+    # Where (directory) should the unprocessed (but decompressed) data be stored?
+    "cache_dir": ".cache/",
+    # Where (file) should the processed data be stored?
+    "save_path": "metadata.csv",
+    # Should the data be redownloaded (and the cache replaced)?
+    "redownload": False,
+    # What column should be renamed to `lineage`?
+    "lineage_column_name": "clade_nextstrain",
+    # What is the forecast date?
+    # No sequences collected after this date are included.
+    "forecast_date": {
+        "year": datetime.now().year,
+        "month": datetime.now().month,
+        "day": datetime.now().day,
+    },
+    # How many days of sequences should be included?
+    "num_days": 90,
+    # Which divisions should be included?
+    # Currently set to the 50 U.S. states, D.C., and Puerto Rico
+    "included_divisions": [
+        "Alabama",
+        "Alaska",
+        "Arizona",
+        "Arkansas",
+        "California",
+        "Colorado",
+        "Connecticut",
+        "Delaware",
+        "Florida",
+        "Georgia",
+        "Hawaii",
+        "Idaho",
+        "Illinois",
+        "Indiana",
+        "Iowa",
+        "Kansas",
+        "Kentucky",
+        "Louisiana",
+        "Maine",
+        "Maryland",
+        "Massachusetts",
+        "Michigan",
+        "Minnesota",
+        "Mississippi",
+        "Missouri",
+        "Montana",
+        "Nebraska",
+        "Nevada",
+        "New Hampshire",
+        "New Jersey",
+        "New Mexico",
+        "New York",
+        "North Carolina",
+        "North Dakota",
+        "Ohio",
+        "Oklahoma",
+        "Oregon",
+        "Pennsylvania",
+        "Puerto Rico",
+        "Rhode Island",
+        "South Carolina",
+        "South Dakota",
+        "Tennessee",
+        "Texas",
+        "Utah",
+        "Vermont",
+        "Virginia",
+        "Washington",
+        "Washington DC",
+        "West Virginia",
+        "Wisconsin",
+        "Wyoming",
+    ],
+}
 
-# Where should the data be downloaded from?
-DATA_SOURCE = "https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst"
+if __name__ == "__main__":
+    # Load configuration, if given
 
-# What column should be renamed to `lineage`?
-LINEAGE_COLUMN_NAME = "clade_nextstrain"
+    config = DEFAULT_CONFIG
 
-# How many days of sequences should be included?
-NUM_DAYS = 90
+    if len(sys.argv) > 1:
+        with open(sys.argv[1]) as f:
+            config |= yaml.safe_load(f)
 
-# Which divisions should be included?
-# Currently set to the 50 U.S. states, D.C., and Puerto Rico
-INCLUDED_DIVISIONS = [
-    "Alabama",
-    "Alaska",
-    "Arizona",
-    "Arkansas",
-    "California",
-    "Colorado",
-    "Connecticut",
-    "Delaware",
-    "Florida",
-    "Georgia",
-    "Hawaii",
-    "Idaho",
-    "Illinois",
-    "Indiana",
-    "Iowa",
-    "Kansas",
-    "Kentucky",
-    "Louisiana",
-    "Maine",
-    "Maryland",
-    "Massachusetts",
-    "Michigan",
-    "Minnesota",
-    "Mississippi",
-    "Missouri",
-    "Montana",
-    "Nebraska",
-    "Nevada",
-    "New Hampshire",
-    "New Jersey",
-    "New Mexico",
-    "New York",
-    "North Carolina",
-    "North Dakota",
-    "Ohio",
-    "Oklahoma",
-    "Oregon",
-    "Pennsylvania",
-    "Puerto Rico",
-    "Rhode Island",
-    "South Carolina",
-    "South Dakota",
-    "Tennessee",
-    "Texas",
-    "Utah",
-    "Vermont",
-    "Virginia",
-    "Washington",
-    "Washington DC",
-    "West Virginia",
-    "Wisconsin",
-    "Wyoming",
-]
+    # Download the data, if necessary
 
-
-def load_metadata(
-    forecast_date: tuple | None = None,
-    redownload: bool = False,
-) -> pl.DataFrame:
-    """
-    Download the metadata file, preprocess it, and return a `polars.DataFrame`.
-
-    The data is filtered to include only the most recent `NUM_DAYS` days of sequences
-    collected by `forecast_date`, specified as a tuple `(year, month, day)`
-    (defaulting to today's date if not specified). The column specified by
-    `LINEAGE_COLUMN_NAME` is renamed to `lineage`. The unprocessed (but decompressed)
-    data is cached in the `CACHE_DIRECTORY`. If `redownload`, the data is redownloaded,
-    and the cache is replaced.
-    """
-
-    if forecast_date is None:
-        now = datetime.now()
-        forecast_date = (now.year, now.month, now.day)
-
-    parsed_url = urlparse(DATA_SOURCE)
+    parsed_url = urlparse(config["source"])
     save_path = (
-        CACHE_DIRECTORY
+        Path(config["cache_dir"])
         / parsed_url.netloc
         / parsed_url.path.lstrip("/").rsplit(".", 1)[0]
     )
-    # TODO: should cache save path incorporate `forecast_date`?
 
-    # Download the data if necessary
-    if redownload or not os.path.exists(save_path):
-        print("Downloading...", file=sys.stderr, flush=True, end="")
+    if config["redownload"] or not os.path.exists(save_path):
+        print_message("Downloading...", end="")
 
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with urlopen(DATA_SOURCE) as response, save_path.open(
+        with urlopen(config["source"]) as response, save_path.open(
             "wb"
         ) as out_file:
             if parsed_url.path.endswith(".gz"):
@@ -151,48 +156,47 @@ def load_metadata(
             else:
                 raise ValueError(f"Unsupported file format: {parsed_url.path}")
 
-        print(" done.", file=sys.stderr, flush=True)
+        print_message(" done.")
     else:
-        print("Using cached data.", file=sys.stderr, flush=True)
+        print_message("Using cached data.")
 
     # Preprocess the data
-    print("Preprocessing data...", file=sys.stderr, flush=True, end="")
+
+    print_message("Preprocessing data...", end="")
+
+    forecast_date = pl.date(
+        config["forecast_date"]["year"],
+        config["forecast_date"]["month"],
+        config["forecast_date"]["day"],
+    )
 
     df = (
         pl.scan_csv(save_path, separator="\t")
-        .rename({LINEAGE_COLUMN_NAME: "lineage"})
+        .rename({config["lineage_column_name"]: "lineage"})
         # Cast with `strict=False` replaces invalid values with null,
         # which we can then filter out. Invalid values include dates
         # that are resolved only to the month, not the day
         .cast({"date": pl.Date}, strict=False)
         .filter(
             pl.col("date").is_not_null(),
-            pl.col("date") <= pl.date(*forecast_date),
-            pl.col("division").is_in(INCLUDED_DIVISIONS),
+            pl.col("date") <= forecast_date,
+            pl.col("date") >= forecast_date - config["num_days"],
+            pl.col("division").is_in(config["included_divisions"]),
             country="USA",
             host="Homo sapiens",
-        )
-        .filter(
-            pl.col("date") >= pl.col("date").max() - 90,
         )
         .group_by("lineage", "date", "division")
         .agg(pl.len().alias("count"))
         .with_columns(
-            fd_offset=(
-                pl.col("date") - pl.date(*forecast_date)
-            ).dt.total_days()
+            fd_offset=(pl.col("date") - forecast_date).dt.total_days()
         )
         .select("date", "fd_offset", "division", "lineage", "count")
     )
 
-    print(" done.", file=sys.stderr, flush=True)
+    print_message(" done.")
 
-    return df
+    # Export data
 
-
-if __name__ == "__main__":
-    data = load_metadata()
-    # TODO: an argparse setup to specify `forecast_date`
-
-    print(data.collect().write_csv(), end="")
-    print("\nSuccess.", file=sys.stderr)
+    print_message("Exporting data...", end="")
+    df.collect().write_csv(config["save_path"])
+    print_message(" done.")
