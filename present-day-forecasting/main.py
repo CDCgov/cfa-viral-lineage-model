@@ -12,6 +12,7 @@ from numpyro.infer import MCMC, NUTS
 
 import linmod.eval
 import linmod.models
+from linmod.visualize import plot_forecast
 
 numpyro.set_host_device_count(4)
 
@@ -58,13 +59,23 @@ for model_name in config["models"]:
     )
     mcmc.run(jax.random.key(0))
 
-    model.create_forecasts(
+    forecast = model.create_forecasts(
         mcmc,
         np.arange(
             config["forecast_horizon"]["lower"],
             config["forecast_horizon"]["upper"] + 1,
         ),
-    ).write_csv(forecast_path)
+    )
+
+    forecast.write_csv(forecast_path)
+
+    plot_forecast(forecast).save(
+        forecast_dir / f"forecasts-{model_name}.png",
+        width=40,
+        height=30,
+        dpi=300,
+        limitsize=False,
+    )
 
     log("Done.")
 
@@ -92,4 +103,4 @@ pl.DataFrame(
     scores,
     schema=["Metric", "Model", "Score"],
     orient="row",
-).write_csv(config["paths"]["scores"]),
+).write_csv(config["paths"]["scores"])
