@@ -14,23 +14,54 @@ class HierarchicalDivisionsModel:
     See https://doi.org/10.1101/2023.01.02.23284123
     No parameters are constrained here, so specific coefficients are not identifiable.
 
-    counts:         A matrix of counts with shape (num_observations, num_lineages).
-    divisions:      A vector of indices representing the division of each observation.
-    time:           A vector of the time covariate for each observation.
+    data:           A DataFrame with the standard model input format.
+    N:              A Series of total counts (across lineages) for each observation.
+                    Only required if a generative model is desired; lineage counts will
+                    then be ignored.
+    num_lineages:   The number of lineages. Only required if a generative model is
+                    desired; lineage counts will then be ignored.
     """
 
     def __init__(
         self,
-        counts: np.ndarray,
-        divisions: np.ndarray,
-        time: np.ndarray,
+        data: pl.DataFrame,
+        N: pl.Series | None = None,
+        num_lineages: int | None = None,
+        num_divisions: int | None = None,
     ):
-        self.counts = counts
-        self.divisions = divisions
-        self.time = time
+        data = data.pivot(
+            on="lineage", index=["fd_offset", "division"], values="count"
+        ).fill_null(0)
 
-        self.num_lineages = counts.shape[1]
-        self.num_divisions = np.unique(divisions).size
+        self.lineage_names = sorted(
+            filter(lambda c: c not in ["fd_offset", "division"], data.columns)
+        )
+        self.division_names, self.divisions = np.unique(
+            data["division"], return_inverse=True
+        )
+        self.counts = data.select(self.lineage_names).to_numpy()
+
+        time = data["fd_offset"].to_numpy()
+        self._time_standardizer = lambda t: (t - time.mean()) / time.std()
+        self.time = self._time_standardizer(time)
+
+        if (
+            num_lineages is not None
+            and N is not None
+            and num_divisions is not None
+        ):
+            self.N = N.to_numpy()
+            self.num_lineages = num_lineages
+            self.num_divisions = num_divisions
+            self.counts = None
+        else:
+            assert (
+                num_lineages is None and N is None and num_divisions is None
+            ), "To use as a generative model, supply both `num_lineages` and `N`."
+
+            self.N = self.counts.sum(axis=1)
+            self.num_lineages = self.counts.shape[1]
+            self.num_divisions = len(self.division_names)
 
     def numpyro_model(self):
         # beta_0[g, l] is the intercept for lineage l in division g
@@ -95,16 +126,45 @@ class HierarchicalDivisionsModel:
             mu_beta_1 + z_1 @ Sigma_decomposition.T,
         )
 
-        # z[i, l] is the unnormalized probability of lineage l for observation i
-        z = (
-            beta_0[self.divisions, :]
-            + beta_1[self.divisions, :] * self.time[:, None]
+        likelihood = multinomial_likelihood(
+            beta_0, beta_1, self.divisions, self.time, self.N
         )
 
-        numpyro.sample(
-            "Y",
-            dist.Multinomial(total_count=self.counts.sum(axis=1), logits=z),
-            obs=self.counts,
+        # Y[i, l] is the count of lineage l for observation i
+        numpyro.sample("Y", likelihood, obs=self.counts)
+
+    def create_forecasts(self, mcmc, fd_offsets) -> pl.DataFrame:
+        parameter_samples = (
+            expand_grid(
+                chain=np.arange(mcmc.num_chains),
+                iteration=np.arange(mcmc.num_samples),
+                division=self.division_names,
+                lineage=self.lineage_names,
+            )
+            .with_columns(
+                beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
+                beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
+                sample_index=pl.col("iteration")
+                + pl.col("chain") * mcmc.num_samples
+                + 1,
+            )
+            .drop("chain", "iteration")
+        )
+
+        return (
+            expand_grid(
+                sample_index=parameter_samples["sample_index"].unique(),
+                fd_offset=fd_offsets,
+            )
+            .join(parameter_samples, on="sample_index")
+            .with_columns(
+                phi=pl_softmax(
+                    pl.col("beta_0")
+                    + pl.col("beta_1")
+                    * self._time_standardizer(pl.col("fd_offset")),
+                ).over("sample_index", "division", "fd_offset")
+            )
+            .drop("beta_0", "beta_1")
         )
 
 
