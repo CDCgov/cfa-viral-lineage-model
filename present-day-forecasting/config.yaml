@@ -1,11 +1,24 @@
 data:
-  # Where (file) is model input stored?
-  save_file: metadata.csv
+  # Where are the processed datasets for modelling and evaluation stored?
+  save_file:
+    model: data/metadata-model.csv
+    eval: data/metadata-eval.csv
 
+  # What is the forecast date?
+  # No sequences collected or reported after this date are included in the
+  # modelling dataset.
   forecast_date:
     year: 2020
     month: 10
     day: 1
+
+  # How many days since the forecast date should be included in the datasets?
+  # The evaluation dataset will contain sequences collected and reported within
+  # this horizon. The modelling dataset will contain sequences collected and
+  # reported within the horizon `[lower, 0]`.
+  horizon:
+    lower: -90
+    upper: 14
 
 forecasting:
   # Where (directory) should model output be stored?
@@ -24,7 +37,7 @@ forecasting:
     chains: 4
 
   # How many days since the forecast date should be included in the forecast?
-  forecast_horizon:
+  horizon:
     lower: -30
     upper: 14
 

@@ -3,27 +3,24 @@ Usage: `python3 -m linmod.data`
 
 Download the Nextstrain metadata file, preprocess it, and export it.
 
+Two datasets are exported: one for model fitting and one for evaluation.
+The model dataset contains sequences collected and reported by a specified
+forecast date, while the evaluation dataset extends the horizon into the future.
+
+For more information, and to change the forecast date, horizon, or other behaviors,
+see the `DEFAULT_CONFIG` dictionary.
+
 The output is given in CSV format, with columns `date`, `fd_offset`, `division`,
 `lineage`, `count`. Rows are uniquely identified by `(date, division, lineage)`.
 `date` and `fd_offset` can be computed from each other, given the forecast date;
 the `fd_offset` column is the number of days between the forecast date and the `date`
 column.
 
-Preprocessing defaults to the following configuration, which can be overridden
-via a YAML file passed as an argument to the script (see `data.DEFAULT_CONFIG`):
-- The data is downloaded from
-  https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst;
-- Only the 90 most recent days of sequences since the forecast date are included,
-  where the forecast date defaults to today's date; and
-- Only the 50 U.S. states, D.C., and Puerto Rico are included.
-
-Furthermore:
-- Observations without a recorded date are removed; and
-- Only observations from human hosts are included.
+Note that observations without a recorded date are removed, and only observations
+from human hosts are included.
 """
 
 import lzma
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -48,21 +45,32 @@ DEFAULT_CONFIG = {
         "source": "https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst",
         # Where (directory) should the unprocessed (but decompressed) data be stored?
         "cache_dir": ".cache/",
-        # Where (file) should the processed data be stored?
-        "save_path": "metadata.csv",
+        # Where (files) should the processed datasets for modelling and evaluation
+        # be stored?
+        "save_path": {
+            "model": "data/metadata-model.csv",
+            "eval": "data/metadata-eval.csv",
+        },
         # Should the data be redownloaded (and the cache replaced)?
         "redownload": False,
         # What column should be renamed to `lineage`?
         "lineage_column_name": "clade_nextstrain",
         # What is the forecast date?
-        # No sequences collected after this date are included.
+        # No sequences collected or reported after this date are included in the
+        # modelling dataset.
         "forecast_date": {
             "year": datetime.now().year,
             "month": datetime.now().month,
             "day": datetime.now().day,
         },
-        # How many days of sequences should be included?
-        "num_days": 90,
+        # How many days since the forecast date should be included in the datasets?
+        # The evaluation dataset will contain sequences collected and reported within
+        # this horizon. The modelling dataset will contain sequences collected and
+        # reported within the horizon `[lower, 0]`.
+        "horizon": {
+            "lower": -90,
+            "upper": 14,
+        },
         # Which divisions should be included?
         # Currently set to the 50 U.S. states, D.C., and Puerto Rico
         "included_divisions": [
@@ -129,23 +137,23 @@ if __name__ == "__main__":
 
     if len(sys.argv) > 1:
         with open(sys.argv[1]) as f:
-            config |= yaml.safe_load(f)
+            config["data"] |= yaml.safe_load(f)["data"]
 
     # Download the data, if necessary
 
     parsed_url = urlparse(config["data"]["source"])
-    save_path = (
+    cache_path = (
         Path(config["data"]["cache_dir"])
         / parsed_url.netloc
         / parsed_url.path.lstrip("/").rsplit(".", 1)[0]
     )
 
-    if config["data"]["redownload"] or not os.path.exists(save_path):
+    if config["data"]["redownload"] or not cache_path.exists():
         print_message("Downloading...", end="")
 
-        save_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with urlopen(config["data"]["source"]) as response, save_path.open(
+        with urlopen(config["data"]["source"]) as response, cache_path.open(
             "wb"
         ) as out_file:
             if parsed_url.path.endswith(".gz"):
@@ -165,9 +173,9 @@ if __name__ == "__main__":
     else:
         print_message("Using cached data.")
 
-    # Preprocess the data
+    # Preprocess and export the data
 
-    print_message("Preprocessing data...", end="")
+    print_message("Exporting evaluation dataset...", end="")
 
     forecast_date = pl.date(
         config["data"]["forecast_date"]["year"],
@@ -175,20 +183,53 @@ if __name__ == "__main__":
         config["data"]["forecast_date"]["day"],
     )
 
-    df = (
-        pl.scan_csv(save_path, separator="\t")
+    full_df = (
+        pl.scan_csv(cache_path, separator="\t")
         .rename({config["data"]["lineage_column_name"]: "lineage"})
         # Cast with `strict=False` replaces invalid values with null,
         # which we can then filter out. Invalid values include dates
         # that are resolved only to the month, not the day
-        .cast({"date": pl.Date}, strict=False)
+        .cast({"date": pl.Date, "date_submitted": pl.Date}, strict=False)
         .filter(
             pl.col("date").is_not_null(),
-            pl.col("date") <= forecast_date,
-            pl.col("date") >= forecast_date - config["data"]["num_days"],
+            pl.col("date_submitted").is_not_null(),
+            forecast_date + config["data"]["horizon"]["lower"]
+            <= pl.col("date"),
+            pl.col("date")
+            <= forecast_date + config["data"]["horizon"]["upper"],
+            forecast_date + config["data"]["horizon"]["lower"]
+            <= pl.col("date_submitted"),
+            pl.col("date_submitted")
+            <= forecast_date + config["data"]["horizon"]["upper"],
             pl.col("division").is_in(config["data"]["included_divisions"]),
             country="USA",
             host="Homo sapiens",
+        )
+    )
+
+    eval_df = (
+        full_df.group_by("lineage", "date", "division")
+        .agg(pl.len().alias("count"))
+        .with_columns(
+            fd_offset=(pl.col("date") - forecast_date).dt.total_days()
+        )
+        .select("date", "fd_offset", "division", "lineage", "count")
+        .collect()
+    )
+
+    Path(config["data"]["save_path"]["eval"]).mkdir(
+        parents=True, exist_ok=True
+    )
+
+    eval_df.write_csv(config["data"]["save_path"]["eval"])
+
+    print_message(" done.")
+    print_message("Exporting modelling dataset...", end="")
+
+    model_df = (
+        full_df.filter(
+            pl.col("date") <= forecast_date,
+            pl.col("date_submitted") <= forecast_date,
         )
         .group_by("lineage", "date", "division")
         .agg(pl.len().alias("count"))
@@ -196,12 +237,13 @@ if __name__ == "__main__":
             fd_offset=(pl.col("date") - forecast_date).dt.total_days()
         )
         .select("date", "fd_offset", "division", "lineage", "count")
+        .collect()
     )
 
-    print_message(" done.")
+    Path(config["data"]["save_path"]["model"]).mkdir(
+        parents=True, exist_ok=True
+    )
 
-    # Export data
+    model_df.write_csv(config["data"]["save_path"]["model"])
 
-    print_message("Exporting data...", end="")
-    df.collect().write_csv(config["data"]["save_path"])
     print_message(" done.")

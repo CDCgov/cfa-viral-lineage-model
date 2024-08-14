@@ -27,9 +27,9 @@ if len(sys.argv) != 2:
 with open(sys.argv[1]) as f:
     config = yaml.safe_load(f)
 
-# Load the data
+# Load the dataset used for retrospective forecasting
 
-data = pl.read_csv(config["data"]["save_file"], try_parse_dates=True)
+data = pl.read_csv(config["data"]["save_file"]["model"], try_parse_dates=True)
 
 # Fit each model
 
@@ -74,6 +74,10 @@ for model_name in config["forecasting"]["models"]:
     )
 
     print_message("Done.")
+
+# Load the full evaluation dataset
+
+data = pl.read_csv(config["data"]["save_path"]["eval"], try_parse_dates=True)
 
 # Evaluate each model
 
