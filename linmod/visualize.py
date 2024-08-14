@@ -10,8 +10,8 @@ from plotnine import (
 )
 
 
-def plot_samples(samples):
-    summaries = samples.group_by("division", "fd_offset", "lineage").agg(
+def plot_forecast(forecast):
+    summaries = forecast.group_by("division", "fd_offset", "lineage").agg(
         mean_phi=pl.mean("phi"),
         q_lower=pl.quantile("phi", 0.1),
         q_upper=pl.quantile("phi", 0.9),

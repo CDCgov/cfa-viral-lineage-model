@@ -1,0 +1,33 @@
+data:
+  # Where (file) is model input stored?
+  save_file: metadata.csv
+
+forecasting:
+  # Where (directory) should model output be stored?
+  save_dir: out/
+
+  # Which models should be fit?
+  models:
+    - BaselineModel
+    - IndependentDivisionsModel
+    - HierarchicalDivisionsModel
+
+  # MCMC configuration
+  mcmc:
+    warmup: 2500
+    samples: 500
+    chains: 4
+
+  # How many days since the forecast date should be included in the forecast?
+  forecast_horizon:
+    lower: -30
+    upper: 14
+
+evaluation:
+  # Where (file) should model scores be stored?
+  save_file: results.csv
+
+  # How should forecasts be evaluated?
+  metrics:
+    - proportions_mean_norm
+    - proportions_energy_score
