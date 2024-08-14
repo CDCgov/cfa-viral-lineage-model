@@ -1,12 +1,12 @@
 data:
-  # Where are the processed datasets for modelling and evaluation stored?
+  # Where are the processed datasets for modeling and evaluation stored?
   save_file:
     model: data/metadata-model.csv
     eval: data/metadata-eval.csv
 
   # What is the forecast date?
   # No sequences collected or reported after this date are included in the
-  # modelling dataset.
+  # modeling dataset.
   forecast_date:
     year: 2020
     month: 10
@@ -14,7 +14,7 @@ data:
 
   # How many days since the forecast date should be included in the datasets?
   # The evaluation dataset will contain sequences collected and reported within
-  # this horizon. The modelling dataset will contain sequences collected and
+  # this horizon. The modeling dataset will contain sequences collected and
   # reported within the horizon `[lower, 0]`.
   horizon:
     lower: -90

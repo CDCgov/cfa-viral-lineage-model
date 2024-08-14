@@ -45,7 +45,7 @@ DEFAULT_CONFIG = {
         "source": "https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst",
         # Where (directory) should the unprocessed (but decompressed) data be stored?
         "cache_dir": ".cache/",
-        # Where (files) should the processed datasets for modelling and evaluation
+        # Where (files) should the processed datasets for modeling and evaluation
         # be stored?
         "save_path": {
             "model": "data/metadata-model.csv",
@@ -57,7 +57,7 @@ DEFAULT_CONFIG = {
         "lineage_column_name": "clade_nextstrain",
         # What is the forecast date?
         # No sequences collected or reported after this date are included in the
-        # modelling dataset.
+        # modeling dataset.
         "forecast_date": {
             "year": datetime.now().year,
             "month": datetime.now().month,
@@ -65,7 +65,7 @@ DEFAULT_CONFIG = {
         },
         # How many days since the forecast date should be included in the datasets?
         # The evaluation dataset will contain sequences collected and reported within
-        # this horizon. The modelling dataset will contain sequences collected and
+        # this horizon. The modeling dataset will contain sequences collected and
         # reported within the horizon `[lower, 0]`.
         "horizon": {
             "lower": -90,
@@ -224,7 +224,7 @@ if __name__ == "__main__":
     eval_df.write_csv(config["data"]["save_path"]["eval"])
 
     print_message(" done.")
-    print_message("Exporting modelling dataset...", end="")
+    print_message("Exporting modeling dataset...", end="")
 
     model_df = (
         full_df.filter(
