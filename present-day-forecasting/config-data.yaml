@@ -1,6 +1,0 @@
-forecast_date:
-  year: 2020
-  month: 10
-  day: 1
-
-save_path: metadata.csv
