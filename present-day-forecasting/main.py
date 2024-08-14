@@ -33,14 +33,14 @@ with open(sys.argv[1]) as f:
 
 # Load the data
 
-data = pl.read_csv(config["paths"]["data"], try_parse_dates=True)
+data = pl.read_csv(config["data"]["save_path"], try_parse_dates=True)
 
 # Fit each model
 
-forecast_dir = Path(config["paths"]["forecast_dir"])
+forecast_dir = Path(config["forecasting"]["save_path"])
 forecast_dir.mkdir(exist_ok=True)
 
-for model_name in config["models"]:
+for model_name in config["forecasting"]["models"]:
     forecast_path = forecast_dir / f"forecasts-{model_name}.csv"
 
     if forecast_path.exists():
@@ -53,17 +53,17 @@ for model_name in config["models"]:
 
     mcmc = MCMC(
         NUTS(model.numpyro_model),
-        num_samples=config["mcmc"]["samples"],
-        num_warmup=config["mcmc"]["warmup"],
-        num_chains=config["mcmc"]["chains"],
+        num_samples=config["forecasting"]["mcmc"]["samples"],
+        num_warmup=config["forecasting"]["mcmc"]["warmup"],
+        num_chains=config["forecasting"]["mcmc"]["chains"],
     )
     mcmc.run(jax.random.key(0))
 
     forecast = model.create_forecasts(
         mcmc,
         np.arange(
-            config["forecast_horizon"]["lower"],
-            config["forecast_horizon"]["upper"] + 1,
+            config["forecasting"]["forecast_horizon"]["lower"],
+            config["forecasting"]["forecast_horizon"]["upper"] + 1,
         ),
     )
 
@@ -83,7 +83,7 @@ for model_name in config["models"]:
 
 scores = []
 
-for metric_name in config["metrics"]:
+for metric_name in config["evaluation"]["metrics"]:
     metric_function = linmod.eval.__dict__[metric_name]
 
     for forecast_path in forecast_dir.glob("forecasts-*.csv"):
@@ -103,4 +103,4 @@ pl.DataFrame(
     scores,
     schema=["Metric", "Model", "Score"],
     orient="row",
-).write_csv(config["paths"]["scores"])
+).write_csv(config["evaluation"]["save_path"])
