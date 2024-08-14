@@ -41,7 +41,7 @@ forecast_dir = Path(config["forecasting"]["save_dir"])
 forecast_dir.mkdir(exist_ok=True)
 
 for model_name in config["forecasting"]["models"]:
-    forecast_path = forecast_dir / f"forecasts-{model_name}.csv"
+    forecast_path = forecast_dir / f"forecasts_{model_name}.csv"
 
     if forecast_path.exists():
         log(f"{model_name} fit already exists; reusing forecast.")
@@ -70,7 +70,7 @@ for model_name in config["forecasting"]["models"]:
     forecast.write_csv(forecast_path)
 
     plot_forecast(forecast).save(
-        forecast_dir / f"forecasts-{model_name}.png",
+        forecast_dir / f"forecasts_{model_name}.png",
         width=40,
         height=30,
         dpi=300,
@@ -86,7 +86,7 @@ scores = []
 for metric_name in config["evaluation"]["metrics"]:
     metric_function = linmod.eval.__dict__[metric_name]
 
-    for forecast_path in forecast_dir.glob("forecasts-*.csv"):
+    for forecast_path in forecast_dir.glob("*.csv"):
         model_name = forecast_path.stem.split("-")[1]
         log(f"Evaluating {model_name} model using {metric_name}...", end="")
 
