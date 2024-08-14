@@ -1,10 +1,10 @@
 data:
   # Where (file) is model input stored?
-  save_path: metadata.csv
+  save_file: metadata.csv
 
 forecasting:
   # Where (directory) should model output be stored?
-  save_path: out/
+  save_dir: out/
 
   # Which models should be fit?
   models:
@@ -25,7 +25,7 @@ forecasting:
 
 evaluation:
   # Where (file) should model scores be stored?
-  save_path: results.csv
+  save_file: results.csv
 
   # How should forecasts be evaluated?
   metrics:

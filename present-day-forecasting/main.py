@@ -33,11 +33,11 @@ with open(sys.argv[1]) as f:
 
 # Load the data
 
-data = pl.read_csv(config["data"]["save_path"], try_parse_dates=True)
+data = pl.read_csv(config["data"]["save_file"], try_parse_dates=True)
 
 # Fit each model
 
-forecast_dir = Path(config["forecasting"]["save_path"])
+forecast_dir = Path(config["forecasting"]["save_dir"])
 forecast_dir.mkdir(exist_ok=True)
 
 for model_name in config["forecasting"]["models"]:
@@ -103,4 +103,4 @@ pl.DataFrame(
     scores,
     schema=["Metric", "Model", "Score"],
     orient="row",
-).write_csv(config["evaluation"]["save_path"])
+).write_csv(config["evaluation"]["save_file"])
