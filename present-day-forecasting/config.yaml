@@ -35,6 +35,9 @@ forecasting:
     warmup: 2500
     samples: 500
     chains: 4
+    convergence:
+      report_all: False
+      ignore_nan_in: ["Omega_decomposition"]
 
 evaluation:
   # Where (file) should model scores be stored?

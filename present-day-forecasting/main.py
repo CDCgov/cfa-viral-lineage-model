@@ -12,7 +12,7 @@ from numpyro.infer import MCMC, NUTS
 
 import linmod.eval
 import linmod.models
-from linmod.utils import print_message
+from linmod.utils import get_convergence, print_message
 from linmod.visualize import plot_forecast
 
 numpyro.set_host_device_count(4)
@@ -24,7 +24,7 @@ if len(sys.argv) != 2:
     print_message("Usage: python3 main.py <YAML config path>")
     sys.exit(1)
 
-with open(sys.argv[1]) as f:
+with open("present-day-forecasting/config.yaml") as f:
     config = yaml.safe_load(f)
 
 # Load the dataset used for retrospective forecasting
@@ -54,6 +54,20 @@ for model_name in config["forecasting"]["models"]:
         num_chains=config["forecasting"]["mcmc"]["chains"],
     )
     mcmc.run(jax.random.key(0))
+
+    if "ignore_nan_in" not in config["forecasting"]["mcmc"]["convergence"]:
+        config["forecasting"]["mcmc"]["convergence"]["ignore_nan_in"] = []
+
+    convergence = get_convergence(
+        mcmc,
+        ignore_nan_in=config["forecasting"]["mcmc"]["convergence"][
+            "ignore_nan_in"
+        ],
+        worst_only=not config["forecasting"]["mcmc"]["convergence"][
+            "report_all"
+        ],
+    )
+    convergence.write_csv(forecast_dir / f"convergence_{model_name}.csv")
 
     forecast = model.create_forecasts(
         mcmc,
