@@ -1,5 +1,5 @@
 """
-Usage: `python3 -m linmod.data`
+Usage: `python3 -m linmod.data [path/to/config.yaml]`
 
 Download the Nextstrain metadata file, preprocess it, and export it.
 
@@ -7,8 +7,9 @@ Two datasets are exported: one for model fitting and one for evaluation.
 The model dataset contains sequences collected and reported by a specified
 forecast date, while the evaluation dataset extends the horizon into the future.
 
-For more information, and to change the forecast date, horizon, or other behaviors,
-see the `DEFAULT_CONFIG` dictionary.
+To change default behaviors, create a yaml configuration file with the key ["data"],
+and pass it in the call to this script. For a list of configurable sub-keys, see the
+`DEFAULT_CONFIG` dictionary.
 
 The output is given in CSV format, with columns `date`, `fd_offset`, `division`,
 `lineage`, `count`. Rows are uniquely identified by `(date, division, lineage)`.
@@ -217,7 +218,7 @@ if __name__ == "__main__":
         .collect()
     )
 
-    Path(config["data"]["save_path"]["eval"]).mkdir(
+    Path(config["data"]["save_path"]["eval"]).parent.mkdir(
         parents=True, exist_ok=True
     )
 
@@ -240,7 +241,7 @@ if __name__ == "__main__":
         .collect()
     )
 
-    Path(config["data"]["save_path"]["model"]).mkdir(
+    Path(config["data"]["save_path"]["model"]).parent.mkdir(
         parents=True, exist_ok=True
     )
 

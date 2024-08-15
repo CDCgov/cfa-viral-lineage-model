@@ -77,7 +77,7 @@ for model_name in config["forecasting"]["models"]:
 
 # Load the full evaluation dataset
 
-data = pl.read_csv(config["data"]["save_path"]["eval"], try_parse_dates=True)
+data = pl.read_csv(config["data"]["save_file"]["eval"], try_parse_dates=True)
 
 # Evaluate each model
 
@@ -87,7 +87,7 @@ for metric_name in config["evaluation"]["metrics"]:
     metric_function = linmod.eval.__dict__[metric_name]
 
     for forecast_path in forecast_dir.glob("*.csv"):
-        model_name = forecast_path.stem.split("-")[1]
+        model_name = forecast_path.stem.split("_")[1]
         print_message(
             f"Evaluating {model_name} model using {metric_name}...", end=""
         )
