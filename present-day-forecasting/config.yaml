@@ -13,7 +13,7 @@ data:
     day: 1
 
   # The modeling dataset will contain sequences collected and reported within
-  # `[lower, 0]`, where 0 is the above `forecast_date`.  
+  # `[lower, 0]`, where 0 is the above `forecast_date`.
   # The evaluation dataset will contain sequences collected within `[lower, upper]`
   # and reported at any point before the date the data was accessed.
   horizon:
