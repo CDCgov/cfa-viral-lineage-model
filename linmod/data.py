@@ -14,7 +14,7 @@ The output is given in CSV format, with columns `date`, `fd_offset`, `division`,
 `lineage`, `count`. Rows are uniquely identified by `(date, division, lineage)`.
 `date` and `fd_offset` can be computed from each other, given the forecast date;
 the `fd_offset` column is the number of days between the forecast date and the `date`
-column.
+column, such that, for example, 0 is the forecast date, -1 the day before, and 1 the day after.
 
 Note that observations without a recorded date are removed, and only observations
 from human hosts are included.
