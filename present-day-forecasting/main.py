@@ -55,9 +55,6 @@ for model_name in config["forecasting"]["models"]:
     )
     mcmc.run(jax.random.key(0))
 
-    if "ignore_nan_in" not in config["forecasting"]["mcmc"]["convergence"]:
-        config["forecasting"]["mcmc"]["convergence"]["ignore_nan_in"] = []
-
     convergence = get_convergence(
         mcmc,
         ignore_nan_in=config["forecasting"]["mcmc"]["convergence"][
