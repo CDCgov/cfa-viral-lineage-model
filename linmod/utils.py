@@ -1,5 +1,5 @@
-import sys
 import string
+import sys
 from functools import reduce
 from itertools import product
 
