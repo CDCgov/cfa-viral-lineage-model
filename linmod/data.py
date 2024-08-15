@@ -35,12 +35,6 @@ import zstandard
 
 from .utils import print_message
 
-"""
-Default configuration for data download, preprocessing, and export.
-
-The configuration dictionary expects all of the following entries in a
-`data` key.
-"""
 DEFAULT_CONFIG = {
     "data": {
         # Where should the data be downloaded from?
@@ -131,6 +125,12 @@ DEFAULT_CONFIG = {
         ],
     }
 }
+"""
+Default configuration for data download, preprocessing, and export.
+
+The configuration dictionary expects all of the following entries in a
+`data` key.
+"""
 
 if __name__ == "__main__":
     # Load configuration, if given
