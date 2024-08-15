@@ -12,10 +12,10 @@ data:
     month: 10
     day: 1
 
-  # How many days since the forecast date should be included in the datasets?
-  # The evaluation dataset will contain sequences collected and reported within
-  # this horizon. The modeling dataset will contain sequences collected and
-  # reported within the horizon `[lower, 0]`.
+  # The modeling dataset will contain sequences collected and reported within
+  # `[lower, 0]`, where 0 is the above `forecast_date`.  
+  # The evaluation dataset will contain sequences collected within `[lower, upper]`
+  # and reported at any point before the date the data was accessed.
   horizon:
     lower: -90
     upper: 14
