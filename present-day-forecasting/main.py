@@ -58,8 +58,8 @@ for model_name in config["forecasting"]["models"]:
     forecast = model.create_forecasts(
         mcmc,
         np.arange(
-            config["forecasting"]["horizon"]["lower"],
-            config["forecasting"]["horizon"]["upper"] + 1,
+            config["data"]["horizon"]["lower"],
+            config["data"]["horizon"]["upper"] + 1,
         ),
     )
 

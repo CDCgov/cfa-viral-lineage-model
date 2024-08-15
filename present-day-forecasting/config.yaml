@@ -36,11 +36,6 @@ forecasting:
     samples: 500
     chains: 4
 
-  # How many days since the forecast date should be included in the forecast?
-  horizon:
-    lower: -30
-    upper: 14
-
 evaluation:
   # Where (file) should model scores be stored?
   save_file: results.csv
