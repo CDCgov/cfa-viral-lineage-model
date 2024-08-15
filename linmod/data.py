@@ -206,9 +206,8 @@ if __name__ == "__main__":
             # Drop samples collected outside the horizon
             horizon_lower_date <= pl.col("date"),
             pl.col("date") <= horizon_upper_date,
-            # Drop samples reported outside the horizon
-            horizon_lower_date <= pl.col("date_submitted"),
-            pl.col("date_submitted") <= horizon_upper_date,
+            # Drop samples claiming to be reported before being collected
+            pl.col("date") <= pl.col("date_submitted"),
             # Drop samples not from humans in the included US divisions
             pl.col("division").is_in(config["data"]["included_divisions"]),
             country="USA",
@@ -236,10 +235,7 @@ if __name__ == "__main__":
     print_message("Exporting modeling dataset...", end="")
 
     model_df = (
-        full_df.filter(
-            pl.col("date") <= forecast_date,
-            pl.col("date_submitted") <= forecast_date,
-        )
+        full_df.filter(pl.col("date_submitted") <= forecast_date)
         .group_by("lineage", "date", "division")
         .agg(pl.len().alias("count"))
         .with_columns(
