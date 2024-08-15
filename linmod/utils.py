@@ -1,3 +1,4 @@
+import sys
 from functools import reduce
 
 import polars as pl
@@ -16,6 +17,15 @@ def expand_grid(**columns):
     df = reduce(lambda x, y: x.join(y, how="cross"), column_dfs)
 
     return df.sort(columns.keys())
+
+
+def print_message(*args, **kwargs):
+    """
+    Print a message to stderr and flush the buffer.
+    """
+
+    print(*args, **kwargs, file=sys.stderr)
+    sys.stderr.flush()
 
 
 def pl_list_cycle(pl_expr, n: int):
