@@ -12,7 +12,7 @@ from numpyro.infer import MCMC, NUTS
 
 import linmod.eval
 import linmod.models
-from linmod.utils import get_convergence, plot_convergence, print_message
+from linmod.utils import print_message
 from linmod.visualize import plot_forecast
 
 numpyro.set_host_device_count(4)
@@ -55,7 +55,7 @@ for model_name in config["forecasting"]["models"]:
     )
     mcmc.run(jax.random.key(0))
 
-    convergence = get_convergence(
+    convergence = linmod.models.get_convergence(
         mcmc,
         ignore_nan_in=config["forecasting"]["mcmc"]["convergence"][
             "ignore_nan_in"
@@ -84,7 +84,7 @@ for model_name in config["forecasting"]["models"]:
     ):
         plot_dir = forecast_dir / ("convergence_" + model_name)
         plot_dir.mkdir(exist_ok=True)
-        plots = plot_convergence(mcmc, convergence["param"])
+        plots = linmod.models.plot_convergence(mcmc, convergence["param"])
         for plot, par in zip(plots, convergence["param"].to_list()):
             plot.save(plot_dir / (par + ".png"), verbose=False)
 
