@@ -12,7 +12,7 @@ from numpyro.infer import MCMC, NUTS
 
 import linmod.eval
 import linmod.models
-from linmod.utils import get_convergence, print_message
+from linmod.utils import get_convergence, plot_convergence, print_message
 from linmod.visualize import plot_forecast
 
 numpyro.set_host_device_count(4)
@@ -24,7 +24,7 @@ if len(sys.argv) != 2:
     print_message("Usage: python3 main.py <YAML config path>")
     sys.exit(1)
 
-with open("present-day-forecasting/config.yaml") as f:
+with open(sys.argv[1]) as f:
     config = yaml.safe_load(f)
 
 # Load the dataset used for retrospective forecasting
@@ -60,11 +60,33 @@ for model_name in config["forecasting"]["models"]:
         ignore_nan_in=config["forecasting"]["mcmc"]["convergence"][
             "ignore_nan_in"
         ],
-        worst_only=not config["forecasting"]["mcmc"]["convergence"][
-            "report_all"
-        ],
     )
+
+    if (
+        config["forecasting"]["mcmc"]["convergence"]["report_mode"]
+        == "failing"
+    ):
+        convergence = convergence.filter(
+            (
+                pl.col("n_eff")
+                < config["forecasting"]["mcmc"]["convergence"]["ess_cutoff"]
+            )
+            | (
+                pl.col("r_hat")
+                > config["forecasting"]["mcmc"]["convergence"]["ess_cutoff"]
+            )
+        )
     convergence.write_csv(forecast_dir / f"convergence_{model_name}.csv")
+
+    if (
+        config["forecasting"]["mcmc"]["convergence"]["plot"]
+        and convergence.shape[0] > 0
+    ):
+        plot_dir = forecast_dir / (model_name + "_convergence")
+        plot_dir.mkdir(exist_ok=True)
+        plots = plot_convergence(mcmc, convergence["param"])
+        for plot, par in zip(plots, convergence["param"].to_list()):
+            plot.save(plot_dir / (par + ".png"), verbose=False)
 
     forecast = model.create_forecasts(
         mcmc,

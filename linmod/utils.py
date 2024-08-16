@@ -2,10 +2,12 @@ import string
 import sys
 from functools import reduce
 from itertools import product
+from typing import Iterable
 
 import polars as pl
 from numpyro.diagnostics import summary
 from numpyro.infer.mcmc import MCMC
+from plotnine import aes, geom_line, ggplot, theme_bw
 
 
 def expand_grid(**columns):
@@ -60,7 +62,7 @@ def pl_softmax(pl_expr):
 
 
 def get_convergence(
-    mcmc: MCMC, ignore_nan_in: list[str] = [], worst_only: bool = True
+    mcmc: MCMC, ignore_nan_in: list[str] = [], drop_ignorable_nan: bool = True
 ) -> pl.DataFrame:
     allowed = set(string.ascii_lowercase + string.ascii_uppercase + "_")
     for ignore in ignore_nan_in:
@@ -129,10 +131,55 @@ def get_convergence(
                 "Found unexpected NaN convergence values for parameters: "
                 + str(bad)
             )
+        if drop_ignorable_nan:
+            convergence = convergence.filter(
+                (pl.col("n_eff").is_not_nan()) & (pl.col("r_hat").is_not_nan())
+            )
 
-    if worst_only:
-        return convergence.select(
-            [pl.lit("worst"), pl.col("n_eff").min(), pl.col("r_hat").max()]
+    return convergence.drop("param_no_dim")
+
+
+def plot_convergence(mcmc: MCMC, params: Iterable[str]):
+    posterior = mcmc.get_samples(group_by_chain=True)
+    plots = []
+    for par in params:
+        if par.count("[") > 0:
+            dimless_par = par.split("[")[0]
+            indices = [int(i) for i in par.split("[")[1][:-1].split(",")]
+            index_tuple = tuple(
+                [*[slice(None), slice(None)], *[i for i in indices]]
+            )
+            chains = posterior[dimless_par][index_tuple]
+        else:
+            chains = posterior[par]
+
+        niter = chains.shape[1]
+        df = pl.concat(
+            [
+                pl.DataFrame(
+                    {
+                        "param": [par] * niter,
+                        "chain": [str(chain)] * niter,
+                        "iteration": list(range(niter)),
+                        "value": chains[chain].tolist(),
+                    }
+                )
+                for chain in range(chains.shape[0])
+            ]
         )
-    else:
-        return convergence
+
+        plt = (
+            ggplot(df)
+            + geom_line(
+                aes(
+                    x="iteration",
+                    y="value",
+                    color="chain",
+                ),
+            )
+            + theme_bw(base_size=20)
+        )
+
+        plots.append(plt)
+
+    return plots
