@@ -44,7 +44,7 @@ forecasting:
       # ESS below this are considered bad
       ess_cutoff: 625
       # PSRF above this are considered bad
-      psrf_cutuff: 1.005
+      psrf_cutoff: 1.005
       # Parameters containing fixed quantities have no variability and cause 0/0 errors
       ignore_nan_in: ["Omega_decomposition"]
 
