@@ -82,7 +82,7 @@ for model_name in config["forecasting"]["models"]:
         config["forecasting"]["mcmc"]["convergence"]["plot"]
         and convergence.shape[0] > 0
     ):
-        plot_dir = forecast_dir / (model_name + "_convergence")
+        plot_dir = forecast_dir / ("convergence_" + model_name)
         plot_dir.mkdir(exist_ok=True)
         plots = plot_convergence(mcmc, convergence["param"])
         for plot, par in zip(plots, convergence["param"].to_list()):
