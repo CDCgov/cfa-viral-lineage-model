@@ -73,7 +73,7 @@ for model_name in config["forecasting"]["models"]:
             )
             | (
                 pl.col("r_hat")
-                > config["forecasting"]["mcmc"]["convergence"]["ess_cutoff"]
+                > config["forecasting"]["mcmc"]["convergence"]["psrf_cutoff"]
             )
         )
     convergence.write_csv(forecast_dir / f"convergence_{model_name}.csv")
