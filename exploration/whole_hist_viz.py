@@ -1,16 +1,5 @@
-"""
-Usage: `python3 -m exploration/whole_hist_viz.py path/to/data.tsv figure/save/path.png`
-
-There are three optional arguments after the save path, specifying (in order):
-  - A frequency cutoff, such that clades which never exceed the cutoff are not plotted
-  - A width, in inches, for the plot
-  - A height, in inches, for the plot
-
-A simple plot of the proportions of all currently-named NextStrain clades over
-time in the United States, with no per-state breakdown.
-"""
-
-import sys
+import argparse
+import datetime
 
 import polars as pl
 from plotnine import aes, geom_line, ggplot, theme_bw
@@ -18,7 +7,7 @@ from plotnine import aes, geom_line, ggplot, theme_bw
 from linmod.data import with_bad_ns_assign
 
 
-def make_plot(dfp, ignore_under):
+def make_plot(dfp, ignore_under, first_date, last_date):
     r"""
     Plots all NextStrain clades in the available data, weekly, for the full duration.
     """
@@ -32,6 +21,9 @@ def make_plot(dfp, ignore_under):
             pl.col("date").is_not_null(),
             # Drop samples claiming to be reported before being collected
             pl.col("date") <= pl.col("date_submitted"),
+            # Keep only samples in range of specified days
+            pl.col("date") >= first_date,
+            pl.col("date") <= last_date,
             country="USA",
             host="Homo sapiens",
         )
@@ -83,26 +75,48 @@ def make_plot(dfp, ignore_under):
 
 
 if __name__ == "__main__":
-    # Load configuration, if given
-    assert len(sys.argv) >= 3
-    print(
-        "Visualization routine called with "
-        + str(len(sys.argv) - 1)
-        + " arguments"
+    parser = argparse.ArgumentParser(
+        description="A simple plot of the proportions of all currently-named NextStrain clades over time in the United States, with no per-state breakdown."
+    )
+    parser.add_argument("data_filename")
+    parser.add_argument("output_filepath")
+    parser.add_argument(
+        "-f",
+        "--first_date",
+        default="1900-01-01",
+        help="Plot will only include data for this day or later. Default corresponds to all days.",
+    )
+    parser.add_argument(
+        "-l",
+        "--last_date",
+        default="2100-01-01",
+        help="Plot will only include data for up to this day or earlier. Default corresponds to all days.",
+    )
+    parser.add_argument(
+        "-c",
+        "--frequency_cutoff",
+        default=0.5,
+        help="Plot will only include lineages which exceed this frequency in at least one week",
+    )
+    parser.add_argument(
+        "-w", "--width", default=6, help="Plot width, in inches."
+    )
+    parser.add_argument(
+        "-t", "--height", default=4, help="Plot height, in inches."
     )
 
-    ignore_under = 0.2
-    if len(sys.argv) > 3:
-        ignore_under = float(sys.argv[3])
+    args = parser.parse_args()
 
-    plt = make_plot(sys.argv[1], ignore_under=ignore_under)
+    plt = make_plot(
+        args.data_filename,
+        ignore_under=float(args.frequency_cutoff),
+        first_date=datetime.datetime.strptime(args.first_date, "%Y-%m-%d"),
+        last_date=datetime.datetime.strptime(args.last_date, "%Y-%m-%d"),
+    )
 
-    width = 6
-    if len(sys.argv) > 4:
-        width = float(sys.argv[4])
-
-    height = 4
-    if len(sys.argv) > 5:
-        height = float(sys.argv[5])
-
-    plt.save(sys.argv[2], width=width, height=height, limitsize=False)
+    plt.save(
+        args.output_filepath,
+        width=float(args.width),
+        height=float(args.height),
+        limitsize=False,
+    )
