@@ -26,6 +26,7 @@ import lzma
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
@@ -133,14 +134,11 @@ The configuration dictionary expects all of the following entries in a
 """
 
 
-if __name__ == "__main__":
-    # Load configuration, if given
-
+def main(cfg: Optional[dict]):
     config = DEFAULT_CONFIG
 
-    if len(sys.argv) > 1:
-        with open(sys.argv[1]) as f:
-            config["data"] |= yaml.safe_load(f)["data"]
+    if cfg is not None:
+        config["data"] |= cfg["data"]
 
     # Download the data, if necessary
 
@@ -267,3 +265,14 @@ if __name__ == "__main__":
     model_df.write_csv(config["data"]["save_path"]["model"])
 
     print_message(" done.")
+
+
+if __name__ == "__main__":
+    # Load configuration, if given
+
+    cfg = None
+    if len(sys.argv) > 1:
+        with open(sys.argv[1]) as f:
+            cfg = yaml.safe_load(f)["data"]
+
+    main(cfg)
