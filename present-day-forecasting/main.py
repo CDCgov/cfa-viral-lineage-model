@@ -10,6 +10,7 @@ import polars as pl
 import yaml
 from numpyro.infer import MCMC, NUTS
 
+import linmod.data
 import linmod.eval
 import linmod.models
 from linmod.utils import print_message
@@ -26,6 +27,9 @@ if len(sys.argv) != 2:
 
 with open(sys.argv[1]) as f:
     config = yaml.safe_load(f)
+
+# Create the datasets
+linmod.data.main(config)
 
 # Load the dataset used for retrospective forecasting
 
