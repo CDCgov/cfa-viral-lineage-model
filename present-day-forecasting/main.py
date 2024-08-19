@@ -119,7 +119,7 @@ scores = []
 for metric_name in config["evaluation"]["metrics"]:
     metric_function = linmod.eval.__dict__[metric_name]
 
-    for forecast_path in forecast_dir.glob("*.csv"):
+    for forecast_path in forecast_dir.glob("forecasts_*.csv"):
         model_name = forecast_path.stem.split("_")[1]
         print_message(
             f"Evaluating {model_name} model using {metric_name}...", end=""
