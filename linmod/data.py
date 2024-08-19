@@ -132,6 +132,53 @@ The configuration dictionary expects all of the following entries in a
 `data` key.
 """
 
+
+def with_bad_ns_assign(
+    df: pl.LazyFrame,
+    lineage_column_name: str,
+    date_column_name: str,
+) -> pl.LazyFrame:
+    """
+    Adds column indicating if the assigned lineage is impossible.
+
+    NextStrain clades are named via a 2-digit year followed by a letter, e.g.
+    19A, the first named lineage in 2019.
+
+    Errors in assignment can lead to invalid assignments of a sequence to a
+    lineage that had not yet been named. For example, a sequence in 2020
+    cannot belong to 23D.
+
+    df:                  A polars DataFrame with at least 2 columns: lineage_column_name
+                         and date_column_name.
+    lineage_column_name: A string giving the name of the column with lineages assigned
+    date_column_name:    A string giving the name with the date column. This should be the
+                         date, rather than the submission_date.
+    """
+
+    df = (
+        df.with_columns(
+            lineage_year=pl.col(lineage_column_name)
+            .cast(pl.String)
+            .map_elements(
+                lambda x: int(str(x)[:2]) if x != "recombinant" else 1000,
+                pl.Int64,
+            )
+        )
+        .with_columns(
+            sample_year=pl.col(date_column_name)
+            .dt.year()
+            .cast(pl.String)
+            .map_elements(lambda x: int(str(x)[2:]), pl.Int64)
+        )
+        .with_columns(
+            impossible=pl.col("sample_year") < pl.col("lineage_year")
+        )
+        .drop("lineage_year", "sample_year")
+    )
+
+    return df
+
+
 if __name__ == "__main__":
     # Load configuration, if given
 
@@ -200,6 +247,8 @@ if __name__ == "__main__":
         # that are resolved only to the month, not the day
         .cast({"date": pl.Date, "date_submitted": pl.Date}, strict=False)
         .filter(
+            # Drop samples with missing lineage
+            pl.col("lineage").is_not_null(),
             # Drop samples with missing collection or reporting dates
             pl.col("date").is_not_null(),
             pl.col("date_submitted").is_not_null(),
@@ -214,6 +263,13 @@ if __name__ == "__main__":
             host="Homo sapiens",
         )
     )
+
+    # Mark impossible lineage assignments and remove
+    full_df = with_bad_ns_assign(
+        full_df,
+        lineage_column_name="lineage",
+        date_column_name="date",
+    ).filter(pl.col("impossible").not_())
 
     eval_df = (
         full_df.group_by("lineage", "date", "division")
