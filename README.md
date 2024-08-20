@@ -70,7 +70,7 @@ Rows are uniquely identified by `(fd_offset, division, lineage, sample_index)`.
 | R      | Sep 2      |                   |                                  |
 | S      | Sep 16     |                   |                                  |
 
-### A ladder of models for consideration
+### A ladder of (multinomial logistic regression) models for consideration
 
 It seems useful to start at the bottom of the ladder, both for debugging purposes, but also to get a sense of the added predictive power of each step.
 You get more and more parameters to estimate; how does that balance against the improved accuracy?
