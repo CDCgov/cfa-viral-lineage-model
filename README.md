@@ -41,7 +41,7 @@ Rows are uniquely identified by `(fd_offset, division, lineage, sample_index)`.
 
 ## Milestones & timeline
 
-Must-haves
+### Must-haves
 - [x] (1) Implement baseline and starter models
 	- Regression assuming spatial independence, no time covariate
 	- Regression assuming spatial independence and a time covariate
@@ -50,7 +50,7 @@ Must-haves
 - [ ] (4) Conduct retrospective evaluations of our models with our metrics
 - [ ] (5) Prepare for symposium & friends
 
-Wishlist
+### Wishlist
 - [ ] (6) Implement a metric to evaluate population-level lineage domination time predictions in a retrospective setting
 	- Answer two questions: will lineage X take off? Given that lineage X takes off, at what time point does it reach 50% phi?
 - [ ] (7) Can we obtain lineage growth rates in a model-agnostic way, from only posterior samples of population-level lineage proportions?
@@ -70,6 +70,25 @@ Wishlist
 | R      | Sep 2      |                   |                                  |
 | S      | Sep 16     |                   |                                  |
 
+### A ladder of (multinomial logistic regression) models for consideration
+
+It seems useful to start at the bottom of the ladder, both for debugging purposes, but also to get a sense of the added predictive power of each step.
+You get more and more parameters to estimate; how does that balance against the improved accuracy?
+
+1. One human population/geography (e.g. state, HHS region, country), two pathogen populations (dominant variant vs. everything else), binomial dynamics
+   - i.e. `dominant% ~ invlogit[intercept + "slope" * time]`
+3. One geography, multiple variants, multinomial
+4. Multiple geographies, multiple variants, multinomial, no correlations or partial pooling
+   - Statistically equivalent to #2, but requires some different computational implementation
+5. As above plus partial pooling of "slopes" by variant across geographies, but without correlations:
+   - `beta_1ij ~ N(mu_beta1i, sigma_beta1i)`
+   - `mu_beta1i ~ some prior`, `sigma_beta1i ~ some prior`
+   - `i=variant` `j=geography`
+6. As above plus partial pooling of intercepts by variant across geographies
+7. As above plus correlations between "slopes" by variant across counties
+   - i.e. if growth rates of variant A and B are correlated across countries X and Y, then we also expect variants C and D to have correlated growth rates across countries X and Y
+   - `beta_1*j ~ MVN(mu_beta1*, Sigma)`
+   - `Sigma ~ some LKJ prior`
 
 ## General Disclaimer
 This repository was created for use by CDC programs to collaborate on public health related projects in support of the [CDC mission](https://www.cdc.gov/about/organization/mission.htm).  GitHub is not hosted by the CDC, but is a third party website used by CDC and its partners to share information and collaborate on software. CDC use of GitHub does not imply an endorsement of any one particular service, product, or enterprise.
