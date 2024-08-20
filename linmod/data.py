@@ -160,7 +160,7 @@ def with_bad_ns_assign(
             lineage_year=pl.col(lineage_column_name)
             .cast(pl.String)
             .map_elements(
-                lambda x: int(str(x)[:2]) if x != "recombinant" else 1000,
+                lambda x: int(str(x)[:2]) if x != "recombinant" else 0,
                 pl.Int64,
             )
         )
