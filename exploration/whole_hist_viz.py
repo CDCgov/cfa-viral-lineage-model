@@ -4,8 +4,6 @@ import datetime
 import polars as pl
 from plotnine import aes, geom_line, ggplot, theme_bw
 
-from linmod.data import with_bad_ns_assign
-
 
 def make_plot(dfp, ignore_under, first_date, last_date):
     r"""
