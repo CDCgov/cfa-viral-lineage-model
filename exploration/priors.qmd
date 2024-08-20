@@ -1,0 +1,294 @@
+---
+title: "Prior choices"
+format:
+  html:
+    code-fold: true
+    embed-resources: true
+jupyter: python3
+---
+
+First, some imports, RNG keys, and global settings.
+```{python}
+import jax
+import matplotlib.pyplot as plt
+import numpy
+import numpy.random
+import numpyro
+import numpyro.util
+import numpyro.distributions as dist
+import jax.numpy as jnp
+
+from jax.nn import softmax
+
+
+num_samples = int(1e4)
+num_lineages = 10
+```
+
+Some visualization shortcut code.
+```{python}
+def viz_one_lineage(imat, bins=100):
+    fig, ax = plt.subplots()
+    ax.hist(imat[:,0], bins=bins)
+    plt.show()
+
+def viz_lineage_change(imat, which, bins=100):
+    assert isinstance(which, int)
+    if which >= 0 and which < imat[0].shape[1]:
+        toplot = jnp.array((imat[0, :, which], imat[1, :, which]))
+    else:
+        toplot = jnp.array((jnp.max(imat[0], axis=1), jnp.max(imat[1], axis=1)))
+    fig, axs = plt.subplots(1, 2, sharey=True, tight_layout=True)
+    axs[0].hist(toplot[0], bins=bins)
+    axs[1].hist(toplot[1], bins=bins)
+    plt.show()
+
+def viz_lineage_change_biv(imat, which, bins=100):
+    assert isinstance(which, int)
+    if which >= 0 and which < imat[0].shape[1]:
+        toplot = jnp.array((imat[0, :, which], imat[1, :, which]))
+    else:
+        toplot = jnp.array((jnp.max(imat[0], axis=1), jnp.max(imat[1], axis=1)))
+    fig, ax = plt.subplots(tight_layout=True)
+    ax.hist2d(toplot[0], toplot[1], bins=bins)
+    plt.show()
+
+def viz_lineage_change_delta(imat, which, bins=100):
+    assert isinstance(which, int)
+    if which >= 0 and which < imat[0].shape[1]:
+        toplot = jnp.array((imat[0, :, which], imat[1, :, which]))
+    else:
+        toplot = jnp.array((jnp.max(imat[0], axis=1), jnp.max(imat[1], axis=1)))
+    fig, ax = plt.subplots(tight_layout=True)
+    ax.hist(toplot[1] - toplot[0], bins=bins)
+    plt.show()
+```
+
+## Baseline model
+The baseline model is that all lineage proportions are constant in each state, and that states are independent.
+Thus we can focus on a single state, within which proportions for each lineage $\phi_{\ell}$ are drawn independently and identically (IID) as follows,
+\begin{align*}
+  &\zeta_{\ell} \sim \text{Normal}(0, 1)\\
+  &\phi_{\ell} := \frac{e^{-\zeta_{\ell}}}{\sum_k e^{-\zeta_{k}}}
+\end{align*}
+
+The following plots (of the marginal distribution of the intercept for a single lineage) show that this compares not unfavorably to a flat Dirichlet, at least in the realm of dimensions we're considering.
+
+```{python}
+def simulate_ints_base_logit(nobs, nlin, seed):
+    with numpyro.handlers.seed(rng_seed=seed):
+        logit_phi = numpyro.sample("logit_phi", dist.Normal(0, 1), sample_shape=(nobs, nlin,))
+        prop_ints = jnp.apply_along_axis(
+            lambda lp: softmax(lp),
+            1,
+            logit_phi
+        )
+
+    return prop_ints
+
+viz_one_lineage(simulate_ints_base_logit(num_samples, num_lineages, 42), bins=100)
+```
+
+```{python}
+def simulate_ints_base_dirichlet(nobs, nlin, alpha, seed):
+    with numpyro.handlers.seed(rng_seed=seed):
+        prop_ints = numpyro.sample("phi", dist.Dirichlet(jnp.array([alpha] * nlin)), sample_shape=(nobs,))
+
+    return prop_ints
+
+viz_one_lineage(simulate_ints_base_dirichlet(num_samples, num_lineages, 1, 42), bins=100)
+```
+
+## Independent divisions model
+The independent divisions model builds off the baseline model by allowing for growth of lineages over time, independently in each division.
+Focusing in on one division, we now have logit-scale intercepts $\beta_{0 \ell}$ and logit-scale growth rates $\beta_{1 \ell}$.
+The proportion of a lineage at time $t$ is given by the model,
+\begin{align*}
+  &\beta_{0 \ell} \sim \text{Normal}(0, 1)\\
+  &\beta_{1 \ell} \sim \text{Normal}(0, 0.1^2)\\
+  &\phi_{t \ell} := \frac{e^{-(\beta_{0 \ell} + t \beta_{1 \ell})}}{\sum_k e^{-(\beta_{0 \ell} + t \beta_{1 \ell})}}
+\end{align*}
+
+As we have already established that the intercept prior is reasonable, let us investigate what the effect is of our ``slope'' distribution.
+Setting a reasonable prior value here is somewhat difficult, as our intuition about what is reasonable is mostly confined to the extreme event when a new, highly-fit lineage arrives and takes off.
+We are thus inherently reasoning about the tails of the distribution, in particular the distribution of a sample maximum (the maximum slope parameter).
+
+In these tails, our intuition suggests that the order of time for something rare and highly-fit to go from $\approx 0$ to its maximum (which in these models will always be 1 eventually) should be on the order of months.
+It should certainly not be able to take over in a week or less.
+
+```{python}
+# The last lineage starts at frequency "low" and has the largest-drawn fitness
+# The first lineage starts at frequency "high," the rest start at intermediate fitness
+def simulate_takeover_ind_div(nobs, nlin, low, high, duration, slope_scale, seed):
+    assert nlin > 2
+    rest = (1.0 - low - high) / (nlin - 2)
+    nonlow = [rest] * (nlin - 2)
+    nonlow.append(high)
+    # Ensure the rarest lineage has the highest fitness
+    with numpyro.handlers.seed(rng_seed=seed):
+        beta_0_list = []
+        for _ in range(nobs):
+            tmp = nonlow.copy()
+            numpy.random.shuffle(nonlow)
+            tmp.append(low)
+            beta_0_list.append(numpy.log(tmp))
+
+        beta_0 = jnp.array(beta_0_list)
+
+        beta_1 = numpyro.sample("slopes", dist.Normal(0, slope_scale), sample_shape=(nobs, nlin,)).sort(axis=1)
+
+        props_init = jnp.apply_along_axis(
+            lambda lp: softmax(lp),
+            1,
+            beta_0
+        )
+
+        props_final = jnp.apply_along_axis(
+            lambda lp: softmax(lp),
+            1,
+            beta_0 + duration * beta_1
+        )
+
+    return jnp.array((props_init, props_final))
+```
+
+
+```{python}
+slope_scale = 0.25
+id_sim = simulate_takeover_ind_div(num_samples, num_lineages, 0.01, 0.8, 7, slope_scale, 42)
+viz_lineage_change_delta(id_sim, which=9)
+```
+
+```{python}
+id_sim = simulate_takeover_ind_div(num_samples, num_lineages, 0.01, 0.8, 30, slope_scale, 42)
+viz_lineage_change_delta(id_sim, which=9)
+```
+
+```{python}
+id_sim = simulate_takeover_ind_div(num_samples, num_lineages, 0.01, 0.8, 91, slope_scale, 42)
+viz_lineage_change_delta(id_sim, which=9)
+```
+
+```{python}
+(id_sim[1, :, 9] - id_sim[0, :, 9] < 0.5).mean()
+```
+
+This also seems plausible.
+The fittest lineage, starting rare, won't take over in a week of a month, but it might in 3.
+This is good because we want a model that can apply to 2022 ($\approx 4$ sweeps) or 2023 (which had protracted periods where nothing was sweeping rapidly).
+
+## Hierarchical divisions model
+The hierarchical divisions model pools information across locations.
+This is accomplished separately and distinctly for the intercepts and slopes.
+
+### Intercept
+
+The slopes are modeled with a shared mean vector $\boldsymbol{\mu}_{\beta_0}$, describing the per-lineage median proportion (logit-scale mean), a per-lineage variability term $\boldsymbol{\sigma}_{\beta_0}$, describing how much particular lineage starting proportions vary, and finally a per-lineage, per-division uncentered error/noise/deviation term $\mathbf{Z}_0$, with $Z_{\beta_0 g \ell}$ the deviation in location $g$ for lineage $\ell$.
+The model for the intercept of lineage $\ell$ in location $g$, $\beta_{0 g \ell}$ is then,
+\begin{align*}
+  &\mu_{\beta_0 \ell} \sim \text{Normal}(0, \sqrt{2}^2)\\
+  &\sigma_{\beta_0 \ell} \sim \text{Exponential}(1)\\
+  &z_{\beta_0 g \ell} \sim \text{Normal}(0, \sqrt{2}^2)\\
+  &\beta_{0 g \ell} := \mu_{\beta_0 \ell} + \sigma_{\beta_0 \ell} * z_{\beta_0 g \ell}
+\end{align*}
+
+Taking advantage of the fact that all means are 0, variance of the $\beta_{0 g \ell}$ [is thus](https://en.wikipedia.org/wiki/Distribution_of_the_product_of_two_random_variables#Variance_of_the_product_of_independent_random_variables) $\text{Var}[\mu_{\beta_0 \ell}] + \text{Var}[\sigma_{\beta_0 \ell}]\text{Var}[z_{\beta_0 g \ell}]$.
+
+The distributions above with their chosen parameters keep the $\text{Var}[\beta_{0 g \ell}] = 1$ for consistency with the other models.
+The exact choice of distributions is somewhat arbitrary, the main factor is that the hierarchical variance parameter should have a mode at 0, in order to exert regularization towards shared proportions.
+Some arbitrariness comes from the choice of distributions, more comes from the relative allocation of the total variance to the components.
+
+As we can see below, the resulting marginal prior is not absurd.
+
+```{python}
+def simulate_ints_hier(nobs, nlin, seed):
+    with numpyro.handlers.seed(rng_seed=seed):
+        mu_beta_0 = numpyro.sample(
+            "mu_beta_0",
+            dist.Normal(0, 0.70710678),
+            sample_shape=(nlin, nobs,),
+        )
+        sigma_beta_0 = numpyro.sample(
+            "sigma_beta_0",
+            dist.Exponential(1.0),
+            sample_shape=(nlin, nobs,),
+        )
+        z_0 = numpyro.sample(
+            "z_0",
+            dist.Normal(0, 0.70710678),
+            sample_shape=(nlin, nobs,),
+        )
+        beta_0 = numpyro.deterministic(
+            "beta_0",
+            mu_beta_0 + sigma_beta_0 * z_0,
+        ).T
+
+        prop_ints = jnp.apply_along_axis(
+            lambda lp: softmax(lp),
+            1,
+            beta_0
+        )
+
+    return prop_ints
+
+viz_one_lineage(simulate_ints_hier(num_samples, num_lineages, 42), bins=100)
+
+```
+
+### Slope
+Information on slopes is shared by giving each location a slope drawn from a shared distribution.
+That distribution is specifically Multivariate Normal with mean vector $\boldsymbol{\mu}_{\beta_1}$ and covariance matrix $\Sigma$.
+When $\Sigma$ is not the identity matrix, shared deviations are possible, which may capture unmodeled factors such as immune history that would make some set of lineages collectively more or less fit in a particular location.
+The prior on $\Sigma$ is decomposed into a prior on the diagonals and an LKJ prior on the strength of correlation.
+
+Put together, slopes are modeled as follows,
+\begin{align*}
+  &\mu_{\beta_1 \ell} \sim \text{Normal}(0, \xi^2)\\
+  &\boldsymbol{\Omega} \sim \text{LKJ}(2)\\
+  &\sigma_{\beta_1 \ell} \sim \text{Exponential}(\lambda)\\
+  &\boldsymbol{\Sigma} := \sqrt{\operatorname{diag}(\boldsymbol{\sigma})} \boldsymbol{\Omega} \sqrt{\operatorname{diag}(\boldsymbol{\sigma})}\\
+  &\beta_{1 g} \sim \text{MVN}(\mu_{\beta_1}, \boldsymbol{\Sigma})
+\end{align*}
+Where $\operatorname{diag}$ makes the corresponding diagonal matrix (0 elsewhere, diagonal equal to the specified vector).
+
+The marginal distribution on $\beta_{1 g \ell}$ has variance $\text{Var}[\beta_{1 g \ell}] = \xi^2 + \sigma_{\beta_1 \ell}^2$.
+The strength of pooling is then determined by the relative allocation of the variance between the shared component ($\xi$) and the unshared component ($\sigma_{\beta_1 \ell}$).
+Assuming that we have a desired target marginal variance (whether that is the above 1/16 or not), we should choose the prior variances of each component such that they sum to that.
+Lacking a better sense of what this should be, and keeping the above 1/16 as the target variance, I propose to us $\lambda = \sqrt{32}$ and $\xi = 1 / \sqrt{32}$.
+This makes the _expectation_ comparable to the variance in the independent divisions model.
+But it should be noted that in practice the model appears to regularly pull the variance higher, sometime much, much higher.
+This violates our principle above of how fast we think variants should be allowed to take over.
+
+### Model changes to consider
+
+#### Adaptive pooling strength
+The strength of pooling in our model is currently fixed by the variances implied by our chosen prior distributions and hyperparameters.
+Broadly, in this framework, instead of putting fixed hyperparameters directly on pooled parameters and error terms, we choose a marginal variance hyperparameter and a strength of pooling parameter which allocates that among the two components.
+
+This is a bit easier to envision with the slope model than the intercept (and likely more important there anyways):
+\begin{align*}
+  &\sigma^2_{\beta_0 \text{marg}} = \frac{1}{16}\\
+  &\rho \sim \text{Beta}(\alpha, \beta)\\
+  &\mu_{\beta_1 \ell} \sim \text{Normal}(0, \rho \sigma^2_{\beta_0 \text{marg}})\\
+  &\boldsymbol{\Omega} \sim \text{LKJ}(2)\\
+  &\sigma_{\beta_1 \ell} \sim \text{Exponential}(1 / \sqrt{(1 - \rho) \sigma^2_{\beta_0 \text{marg}}})\\
+  &\boldsymbol{\Sigma} := \sqrt{\operatorname{diag}(\boldsymbol{\sigma})} \boldsymbol{\Omega} \sqrt{\operatorname{diag}(\boldsymbol{\sigma})}\\
+  &\beta_{1 g} \sim \text{MVN}(\mu_{\beta_1}, \boldsymbol{\Sigma})
+\end{align*}
+
+Here, the larger $\rho$ is, the stronger the pooling is.
+At the extreme of $\rho = 1$, $\sigma_{\beta_1 \ell} = 0$ and all locations have exactly the shared slope.
+At the opposite extreme of $\rho = 0$, all variation is per-location per-lineage.
+
+
+#### LKJ tweaks
+We are currently fixing the strength of correlation _a priori_, but we could conceive of letting the model figure it out.
+We would simply replace
+\[
+  \boldsymbol{\Omega} \sim \text{LKJ}(2)
+\]
+with
+\[
+  \boldsymbol{\Omega} \sim \text{LKJ}(\eta)
+  \eta \sim \text{Pr}(\eta).
+\]

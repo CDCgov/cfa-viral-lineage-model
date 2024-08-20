@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import shutil
 import sys
 
 import jax
@@ -38,12 +39,14 @@ data = pl.read_csv(config["data"]["save_file"]["model"], try_parse_dates=True)
 
 forecast_dir = ValidPath(config["forecasting"]["save_dir"])
 
+if forecast_dir.exists():
+    print_message("Removing existing output directory and all contents.")
+    shutil.rmtree(forecast_dir)
+
+forecast_dir.mkdir()
+
 for model_name in config["forecasting"]["models"]:
     forecast_path = forecast_dir / f"forecasts_{model_name}.csv"
-
-    if forecast_path.exists():
-        print_message(f"{model_name} fit already exists; reusing forecast.")
-        continue
 
     print_message(f"Fitting {model_name} model...")
     model_class = linmod.models.__dict__[model_name]
@@ -99,13 +102,41 @@ for model_name in config["forecasting"]["models"]:
 
     forecast.write_csv(forecast_path)
 
-    plot_forecast(forecast).save(
+    if config["forecasting"]["viz"]["plot_data"]:
+        viz_data = data.filter(
+            pl.col("lineage").is_in(model.lineage_names),
+        ).drop("date")
+        plot = plot_forecast(forecast, viz_data)
+    else:
+        plot = plot_forecast(forecast)
+    plot.save(
         forecast_dir / f"forecasts_{model_name}.png",
         width=40,
         height=30,
         dpi=300,
         limitsize=False,
     )
+
+    if config["evaluation"]["viz"]["plot"]:
+        eval_viz_dir = Path(config["evaluation"]["viz"]["save_dir"])
+        viz_data = (
+            pl.read_csv(
+                config["data"]["save_file"]["eval"], try_parse_dates=True
+            )
+            .filter(
+                pl.col("lineage").is_in(model.lineage_names),
+                pl.col("fd_offset") > 0,
+            )
+            .drop("date")
+        )
+        plot = plot_forecast(forecast, viz_data)
+        plot.save(
+            eval_viz_dir / f"eval_{model_name}.png",
+            width=40,
+            height=30,
+            dpi=300,
+            limitsize=False,
+        )
 
     print_message("Done.")
 
@@ -114,7 +145,6 @@ for model_name in config["forecasting"]["models"]:
 data = pl.read_csv(config["data"]["save_file"]["eval"], try_parse_dates=True)
 
 # Evaluate each model
-
 scores = []
 
 for metric_name in config["evaluation"]["metrics"]:

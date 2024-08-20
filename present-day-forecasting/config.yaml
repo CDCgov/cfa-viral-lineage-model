@@ -48,7 +48,18 @@ forecasting:
       # Parameters containing fixed quantities have no variability and cause 0/0 errors
       ignore_nan_in: ["Omega_decomposition"]
 
+  # Visualization options
+  viz:
+    plot_data: True
+
+
+
 evaluation:
+  # Visualization options
+  viz:
+    save_dir: out/
+    plot: True
+
   # Where (file) should model scores be stored?
   save_file: out/eval/results.csv
 
