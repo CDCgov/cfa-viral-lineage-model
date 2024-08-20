@@ -4,13 +4,20 @@ import datetime
 import polars as pl
 from plotnine import aes, geom_line, ggplot, theme_bw
 
-from linmod.data import with_bad_ns_assign
-
 
 def make_plot(dfp, ignore_under, first_date, last_date):
     r"""
     Plots all NextStrain clades in the available data, weekly, for the full duration.
     """
+
+    lineage_year = (
+        pl.col("lineage")
+        .replace("recombinant", "0")
+        .str.extract(r"(\d+)")
+        .str.to_integer(strict=True)
+        .add(2000)
+    )
+
     df = (
         pl.scan_csv(dfp, separator="\t")
         .rename({"clade_nextstrain": "lineage"})
@@ -24,13 +31,15 @@ def make_plot(dfp, ignore_under, first_date, last_date):
             # Keep only samples in range of specified days
             pl.col("date") >= first_date,
             pl.col("date") <= last_date,
+            # Drop impossible lineage assigments
+            # (lineages which had not yet been named, e.g. a sequence
+            # in 2020 cannot belong to 23D)
+            pl.col("date").dt.year() >= lineage_year,
             country="USA",
             host="Homo sapiens",
         )
     )
-    df = with_bad_ns_assign(df, "lineage", "date").filter(
-        pl.col("impossible").not_()
-    )
+
     df = (
         df.with_columns(wd=pl.col("date").dt.weekday())
         .with_columns(
