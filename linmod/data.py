@@ -132,6 +132,7 @@ The configuration dictionary expects all of the following entries in a
 `data` key.
 """
 
+
 if __name__ == "__main__":
     # Load configuration, if given
 
@@ -192,6 +193,14 @@ if __name__ == "__main__":
         f'{config["data"]["horizon"]["upper"]}d'
     )
 
+    lineage_year = (
+        pl.col("lineage")
+        .replace("recombinant", "0")
+        .str.extract(r"(\d+)")
+        .str.to_integer(strict=True)
+        .add(2000)
+    )
+
     full_df = (
         pl.scan_csv(cache_path, separator="\t")
         .rename({config["data"]["lineage_column_name"]: "lineage"})
@@ -200,6 +209,8 @@ if __name__ == "__main__":
         # that are resolved only to the month, not the day
         .cast({"date": pl.Date, "date_submitted": pl.Date}, strict=False)
         .filter(
+            # Drop samples with missing lineage
+            pl.col("lineage").is_not_null(),
             # Drop samples with missing collection or reporting dates
             pl.col("date").is_not_null(),
             pl.col("date_submitted").is_not_null(),
@@ -208,6 +219,10 @@ if __name__ == "__main__":
             pl.col("date") <= horizon_upper_date,
             # Drop samples claiming to be reported before being collected
             pl.col("date") <= pl.col("date_submitted"),
+            # Drop impossible lineage assigments
+            # (lineages which had not yet been named, e.g. a sequence
+            # in 2020 cannot belong to 23D)
+            pl.col("date").dt.year() >= lineage_year,
             # Drop samples not from humans in the included US divisions
             pl.col("division").is_in(config["data"]["included_divisions"]),
             country="USA",
