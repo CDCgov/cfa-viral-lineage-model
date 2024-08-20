@@ -44,7 +44,7 @@ DEFAULT_CONFIG = {
         "cache_dir": ".cache/",
         # Where (files) should the processed datasets for modeling and evaluation
         # be stored?
-        "save_path": {
+        "save_file": {
             "model": "data/metadata-model.csv",
             "eval": "data/metadata-eval.csv",
         },
@@ -238,11 +238,11 @@ def main(cfg: Optional[dict]):
         .collect()
     )
 
-    Path(config["data"]["save_path"]["eval"]).parent.mkdir(
+    Path(config["data"]["save_file"]["eval"]).parent.mkdir(
         parents=True, exist_ok=True
     )
 
-    eval_df.write_csv(config["data"]["save_path"]["eval"])
+    eval_df.write_csv(config["data"]["save_file"]["eval"])
 
     print_message(" done.")
     print_message("Exporting modeling dataset...", end="")
@@ -258,11 +258,11 @@ def main(cfg: Optional[dict]):
         .collect()
     )
 
-    Path(config["data"]["save_path"]["model"]).parent.mkdir(
+    Path(config["data"]["save_file"]["model"]).parent.mkdir(
         parents=True, exist_ok=True
     )
 
-    model_df.write_csv(config["data"]["save_path"]["model"])
+    model_df.write_csv(config["data"]["save_file"]["model"])
 
     print_message(" done.")
 
