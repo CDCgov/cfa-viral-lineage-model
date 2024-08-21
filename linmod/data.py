@@ -25,7 +25,6 @@ from human hosts are included.
 import lzma
 import sys
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -34,7 +33,7 @@ import polars as pl
 import yaml
 import zstandard
 
-from .utils import print_message
+from .utils import ValidPath, print_message
 
 DEFAULT_CONFIG = {
     "data": {
@@ -144,15 +143,13 @@ def main(cfg: Optional[dict]):
 
     parsed_url = urlparse(config["data"]["source"])
     cache_path = (
-        Path(config["data"]["cache_dir"])
+        ValidPath(config["data"]["cache_dir"])
         / parsed_url.netloc
         / parsed_url.path.lstrip("/").rsplit(".", 1)[0]
     )
 
     if config["data"]["redownload"] or not cache_path.exists():
         print_message("Downloading...", end="")
-
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
 
         with urlopen(config["data"]["source"]) as response, cache_path.open(
             "wb"
@@ -238,11 +235,7 @@ def main(cfg: Optional[dict]):
         .collect()
     )
 
-    Path(config["data"]["save_file"]["eval"]).parent.mkdir(
-        parents=True, exist_ok=True
-    )
-
-    eval_df.write_csv(config["data"]["save_file"]["eval"])
+    eval_df.write_csv(ValidPath(config["data"]["save_file"]["eval"]))
 
     print_message(" done.")
     print_message("Exporting modeling dataset...", end="")
@@ -258,11 +251,7 @@ def main(cfg: Optional[dict]):
         .collect()
     )
 
-    Path(config["data"]["save_file"]["model"]).parent.mkdir(
-        parents=True, exist_ok=True
-    )
-
-    model_df.write_csv(config["data"]["save_file"]["model"])
+    model_df.write_csv(ValidPath(config["data"]["save_file"]["model"]))
 
     print_message(" done.")
 

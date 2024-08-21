@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import sys
-from pathlib import Path
 
 import jax
 import numpy as np
@@ -13,7 +12,7 @@ from numpyro.infer import MCMC, NUTS
 import linmod.data
 import linmod.eval
 import linmod.models
-from linmod.utils import print_message
+from linmod.utils import ValidPath, print_message
 from linmod.visualize import plot_forecast
 
 numpyro.set_host_device_count(4)
@@ -37,8 +36,7 @@ data = pl.read_csv(config["data"]["save_file"]["model"], try_parse_dates=True)
 
 # Fit each model
 
-forecast_dir = Path(config["forecasting"]["save_dir"])
-forecast_dir.mkdir(exist_ok=True)
+forecast_dir = ValidPath(config["forecasting"]["save_dir"])
 
 for model_name in config["forecasting"]["models"]:
     forecast_path = forecast_dir / f"forecasts_{model_name}.csv"
@@ -87,7 +85,6 @@ for model_name in config["forecasting"]["models"]:
         and convergence.shape[0] > 0
     ):
         plot_dir = forecast_dir / ("convergence_" + model_name)
-        plot_dir.mkdir(exist_ok=True)
         plots = linmod.models.plot_convergence(mcmc, convergence["param"])
         for plot, par in zip(plots, convergence["param"].to_list()):
             plot.save(plot_dir / (par + ".png"), verbose=False)
@@ -142,4 +139,4 @@ pl.DataFrame(
     scores,
     schema=["Metric", "Model", "Score"],
     orient="row",
-).write_csv(config["evaluation"]["save_file"])
+).write_csv(ValidPath(config["evaluation"]["save_file"]))

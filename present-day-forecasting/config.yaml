@@ -1,8 +1,8 @@
 data:
   # Where are the processed datasets for modeling and evaluation stored?
   save_file:
-    model: data/metadata-model.csv
-    eval: data/metadata-eval.csv
+    model: data/model.csv
+    eval: data/eval.csv
 
   # What is the forecast date?
   # No sequences collected or reported after this date are included in the
@@ -22,7 +22,7 @@ data:
 
 forecasting:
   # Where (directory) should model output be stored?
-  save_dir: out/
+  save_dir: out/forecasts/
 
   # Which models should be fit?
   models:
@@ -50,7 +50,7 @@ forecasting:
 
 evaluation:
   # Where (file) should model scores be stored?
-  save_file: results.csv
+  save_file: out/eval/results.csv
 
   # How should forecasts be evaluated?
   metrics:
