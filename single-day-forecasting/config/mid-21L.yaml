@@ -1,0 +1,58 @@
+data:
+  # Where are the processed datasets for modeling and evaluation stored?
+  save_file:
+    model: data/mid-21L/model.csv
+    eval: data/mid-21L/eval.csv
+
+  # What is the forecast date?
+  # No sequences collected or reported after this date are included in the
+  # modeling dataset.
+  forecast_date:
+    year: 2022
+    month: 1
+    day: 1
+
+  # The modeling dataset will contain sequences collected and reported within
+  # `[lower, 0]`, where 0 is the above `forecast_date`.
+  # The evaluation dataset will contain sequences collected within `[lower, upper]`
+  # and reported at any point before the date the data was accessed.
+  horizon:
+    lower: -90
+    upper: 14
+
+forecasting:
+  # Where (directory) should model output and visualizations be stored?
+  save_dir: out/forecasts/mid-21L/
+
+  # Which models should be fit?
+  models:
+    - BaselineModel
+    - IndependentDivisionsModel
+    - HierarchicalDivisionsModel
+
+  # MCMC configuration
+  mcmc:
+    warmup: 2500
+    samples: 500
+    chains: 4
+    convergence:
+      # one of: "all" or "failing" to write a csv of ESS and PSRF
+      # for all parameters or only those failing
+      report_mode: "failing"
+      # Should diagnostic plots for all reported parameters be made?
+      plot: True
+      # ESS below this are considered bad
+      ess_cutoff: 625
+      # PSRF above this are considered bad
+      psrf_cutoff: 1.005
+      # Parameters containing fixed quantities have no variability and cause 0/0 errors
+      ignore_nan_in: ["Omega_decomposition"]
+
+evaluation:
+  # Where (directory) should model scores and visualizations be stored?
+  save_dir: out/eval/mid-21L
+
+  # How should forecasts be evaluated?
+  metrics:
+    - proportions_mean_norm
+    - proportions_energy_score
