@@ -48,8 +48,6 @@ if forecast_dir.exists():
 forecast_dir.mkdir()
 
 for model_name in config["forecasting"]["models"]:
-    forecast_path = forecast_dir / f"forecasts_{model_name}.csv"
-
     print_message(f"Fitting {model_name} model...")
     model_class = linmod.models.__dict__[model_name]
     model = model_class(model_data)
@@ -105,7 +103,7 @@ for model_name in config["forecasting"]["models"]:
         ),
     )
 
-    forecast.write_csv(forecast_path)
+    forecast.write_csv(forecast_dir / f"forecasts_{model_name}.csv")
 
     plot_forecast(forecast, model_data).save(
         forecast_dir / "visualizations" / f"forecasts_{model_name}.png",
