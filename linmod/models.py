@@ -100,11 +100,7 @@ class HierarchicalDivisionsModel:
         )
 
         # beta_1[g, l] is the slope for lineage l in division g
-        sigma_beta_1 = numpyro.sample(
-            "sigma_beta_1",
-            dist.Exponential(5.65685425),
-            sample_shape=(self.num_lineages,),
-        )
+        sigma_beta_1 = 0.1767767 * np.ones(self.num_lineages)
         Omega_decomposition = numpyro.sample(
             "Omega_decomposition",
             dist.LKJCholesky(self.num_lineages, 2),
