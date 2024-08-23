@@ -123,6 +123,10 @@ DEFAULT_CONFIG = {
             "Wisconsin",
             "Wyoming",
         ],
+        # Which lineages should be included?
+        # If not provided, all observed lineages are included.
+        # If a list of length >= 1, all observed lineages not in this list are grouped
+        # into "other".
         "lineages": [],
     }
 }
@@ -188,9 +192,8 @@ def main(cfg: Optional[dict]):
     horizon_upper_date = forecast_date.dt.offset_by(
         f'{config["data"]["horizon"]["upper"]}d'
     )
-    model_all_lineages = True
-    if config["data"]["lineages"]:
-        model_all_lineages = False
+
+    model_all_lineages = len(config["data"]["lineages"]) == 0
 
     lineage_year = (
         pl.col("lineage")
