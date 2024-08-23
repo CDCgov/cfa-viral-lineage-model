@@ -123,6 +123,7 @@ DEFAULT_CONFIG = {
             "Wisconsin",
             "Wyoming",
         ],
+        "lineages": [],
     }
 }
 """
@@ -187,6 +188,9 @@ def main(cfg: Optional[dict]):
     horizon_upper_date = forecast_date.dt.offset_by(
         f'{config["data"]["horizon"]["upper"]}d'
     )
+    model_all_lineages = True
+    if config["data"]["lineages"]:
+        model_all_lineages = False
 
     lineage_year = (
         pl.col("lineage")
@@ -223,6 +227,15 @@ def main(cfg: Optional[dict]):
             country="USA",
             host="Homo sapiens",
         )
+        .with_columns(
+            pl.when(
+                pl.col("lineage").is_in(config["data"]["lineages"])
+                | model_all_lineages
+            )
+            .then(pl.col("lineage"))
+            .otherwise(pl.lit("other"))
+            .alias("lineage")
+        )
     )
 
     eval_df = (
@@ -254,6 +267,16 @@ def main(cfg: Optional[dict]):
     model_df.write_csv(ValidPath(config["data"]["save_file"]["model"]))
 
     print_message(" done.")
+
+    if model_all_lineages:
+        print_message(
+            "Modeling all lineages observed in the data at any point in the horizon."
+        )
+    else:
+        print_message(
+            'Modeling the following subset of lineages, (all other lineages grouped into "other"): '
+            + str(config["data"]["lineages"])
+        )
 
 
 if __name__ == "__main__":

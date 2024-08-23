@@ -20,6 +20,9 @@ data:
     lower: -90
     upper: 14
 
+  # What lineages should we model? Empty list for all
+  lineages: []
+
 forecasting:
   # Where (directory) should model output and visualizations be stored?
   save_dir: out/forecasts/
