@@ -118,7 +118,7 @@ for model_name in config["forecasting"]["models"]:
     )
 
     if config["evaluation"]["viz"]["plot"]:
-        eval_viz_dir = Path(config["evaluation"]["viz"]["save_dir"])
+        eval_viz_dir = ValidPath(config["evaluation"]["viz"]["save_dir"])
         viz_data = (
             pl.read_csv(
                 config["data"]["save_file"]["eval"], try_parse_dates=True
