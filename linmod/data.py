@@ -228,19 +228,18 @@ def main(cfg: Optional[dict]):
             host="Homo sapiens",
         )
         .with_columns(
-            pl.when(
+            lineage=pl.when(
                 pl.col("lineage").is_in(config["data"]["lineages"])
                 | model_all_lineages
             )
             .then(pl.col("lineage"))
             .otherwise(pl.lit("other"))
-            .alias("lineage")
         )
     )
 
     eval_df = (
         full_df.group_by("lineage", "date", "division")
-        .agg(pl.len().alias("count"))
+        .agg(count=pl.len())
         .with_columns(
             fd_offset=(pl.col("date") - forecast_date).dt.total_days()
         )
@@ -256,7 +255,7 @@ def main(cfg: Optional[dict]):
     model_df = (
         full_df.filter(pl.col("date_submitted") <= forecast_date)
         .group_by("lineage", "date", "division")
-        .agg(pl.len().alias("count"))
+        .agg(count=pl.len())
         .with_columns(
             fd_offset=(pl.col("date") - forecast_date).dt.total_days()
         )
