@@ -1,7 +1,25 @@
 import sys
 from functools import reduce
+from pathlib import Path
 
 import polars as pl
+
+
+class ValidPath(Path):
+    """
+    Functions like `pathlib.Path`, but ensures that the path exists.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if self.is_dir():
+            self.mkdir(parents=True, exist_ok=True)
+        else:
+            self.parent.mkdir(parents=True, exist_ok=True)
+
+    def __truediv__(self, child):
+        return ValidPath(super().__truediv__(child))
 
 
 def expand_grid(**columns):
