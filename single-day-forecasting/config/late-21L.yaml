@@ -20,6 +20,10 @@ data:
     lower: -90
     upper: 14
 
+  # Which lineages should be included?
+  # All others will be aggregated into "other".
+  lineages: ["21A", "21I", "21J", "21K", "21L", "22C"]
+
 forecasting:
   # Where (directory) should model output and visualizations be stored?
   save_dir: out/forecasts/late-21L/
