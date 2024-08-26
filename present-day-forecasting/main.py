@@ -33,7 +33,9 @@ linmod.data.main(config)
 
 # Load the dataset used for retrospective forecasting
 
-data = pl.read_csv(config["data"]["save_file"]["model"], try_parse_dates=True)
+model_data = pl.read_csv(
+    config["data"]["save_file"]["model"], try_parse_dates=True
+)
 
 # Fit each model
 
@@ -50,7 +52,7 @@ for model_name in config["forecasting"]["models"]:
 
     print_message(f"Fitting {model_name} model...")
     model_class = linmod.models.__dict__[model_name]
-    model = model_class(data)
+    model = model_class(model_data)
 
     mcmc = MCMC(
         NUTS(model.numpyro_model),
@@ -102,49 +104,30 @@ for model_name in config["forecasting"]["models"]:
 
     forecast.write_csv(forecast_path)
 
-    if config["forecasting"]["viz"]["plot_data"]:
-        viz_data = data.filter(
-            pl.col("lineage").is_in(model.lineage_names),
-        ).drop("date")
-        plot = plot_forecast(forecast, viz_data)
-    else:
-        plot = plot_forecast(forecast)
-    plot.save(
-        forecast_dir / f"forecasts_{model_name}.png",
+    plot_forecast(forecast, model_data).save(
+        forecast_dir / "visualizations" / f"forecasts_{model_name}.png",
         width=40,
         height=30,
         dpi=300,
         limitsize=False,
     )
 
-    if config["evaluation"]["viz"]["plot"]:
-        eval_viz_dir = ValidPath(config["evaluation"]["viz"]["save_dir"])
-        viz_data = (
-            pl.read_csv(
-                config["data"]["save_file"]["eval"], try_parse_dates=True
-            )
-            .filter(
-                pl.col("lineage").is_in(model.lineage_names),
-                pl.col("fd_offset") > 0,
-            )
-            .drop("date")
-        )
-        plot = plot_forecast(forecast, viz_data)
-        plot.save(
-            eval_viz_dir / f"eval_{model_name}.png",
-            width=40,
-            height=30,
-            dpi=300,
-            limitsize=False,
-        )
-
     print_message("Done.")
 
 # Load the full evaluation dataset
 
-data = pl.read_csv(config["data"]["save_file"]["eval"], try_parse_dates=True)
+eval_data = pl.read_csv(
+    config["data"]["save_file"]["eval"], try_parse_dates=True
+)
+
+viz_data = eval_data.filter(
+    pl.col("lineage").is_in(model.lineage_names),
+    pl.col("fd_offset") > 0,
+)
 
 # Evaluate each model
+eval_dir = ValidPath(config["evaluation"]["save_dir"])
+
 scores = []
 
 for metric_name in config["evaluation"]["metrics"]:
@@ -158,7 +141,19 @@ for metric_name in config["evaluation"]["metrics"]:
 
         forecast = pl.scan_csv(forecast_path)
         scores.append(
-            (metric_name, model_name, metric_function(forecast, data.lazy()))
+            (
+                metric_name,
+                model_name,
+                metric_function(forecast, eval_data.lazy()),
+            )
+        )
+
+        plot_forecast(forecast, viz_data).save(
+            eval_dir / "visualizations" / f"eval_{model_name}.png",
+            width=40,
+            height=30,
+            dpi=300,
+            limitsize=False,
         )
 
         print_message(" done.")
@@ -169,4 +164,4 @@ pl.DataFrame(
     scores,
     schema=["Metric", "Model", "Score"],
     orient="row",
-).write_csv(ValidPath(config["evaluation"]["save_file"]))
+).write_csv(eval_dir / "results.csv")
