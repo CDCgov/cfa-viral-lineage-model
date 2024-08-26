@@ -17,14 +17,6 @@ def get_plot_data(
     else:
         z = float(dist.Normal(0, 1).icdf(1.0 - ci_alpha))
 
-    lineage_year = (
-        pl.col("lineage")
-        .replace("recombinant", "0")
-        .str.extract(r"(\d+)")
-        .str.to_integer(strict=True)
-        .add(2000)
-    )
-
     last_samp_date = datetime.date(3000, 1, 1)
     if observed_only:
         last_samp_date = last_date
@@ -44,10 +36,6 @@ def get_plot_data(
             pl.col("date") <= last_date,
             # If specified, keep only samples seen by last date
             pl.col("date_submitted") <= last_samp_date,
-            # Drop impossible lineage assigments
-            # (lineages which had not yet been named, e.g. a sequence
-            # in 2020 cannot belong to 23D)
-            pl.col("date").dt.year() >= lineage_year,
             country="USA",
             host="Homo sapiens",
         )

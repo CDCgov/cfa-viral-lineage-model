@@ -245,19 +245,17 @@ Put together, slopes are modeled as follows,
 \begin{align*}
   &\mu_{\beta_1 \ell} \sim \text{Normal}(0, \xi^2)\\
   &\boldsymbol{\Omega} \sim \text{LKJ}(2)\\
-  &\sigma_{\beta_1 \ell} \sim \text{Exponential}(\lambda)\\
+  &\sigma_{\beta_1} := \lambda\\
   &\boldsymbol{\Sigma} := \sqrt{\operatorname{diag}(\boldsymbol{\sigma})} \boldsymbol{\Omega} \sqrt{\operatorname{diag}(\boldsymbol{\sigma})}\\
   &\beta_{1 g} \sim \text{MVN}(\mu_{\beta_1}, \boldsymbol{\Sigma})
 \end{align*}
 Where $\operatorname{diag}$ makes the corresponding diagonal matrix (0 elsewhere, diagonal equal to the specified vector).
 
-The marginal distribution on $\beta_{1 g \ell}$ has variance $\text{Var}[\beta_{1 g \ell}] = \xi^2 + \sigma_{\beta_1 \ell}^2$.
+The marginal distribution on $\beta_{1 g \ell}$ has variance $\text{Var}[\beta_{1 g \ell}] = \xi^2 + \sigma_{\beta_1 \ell}^2 = \xi^2 + \lambda^2$.
 The strength of pooling is then determined by the relative allocation of the variance between the shared component ($\xi$) and the unshared component ($\sigma_{\beta_1 \ell}$).
 Assuming that we have a desired target marginal variance (whether that is the above 1/16 or not), we should choose the prior variances of each component such that they sum to that.
-Lacking a better sense of what this should be, and keeping the above 1/16 as the target variance, I propose to us $\lambda = \sqrt{32}$ and $\xi = 1 / \sqrt{32}$.
-This makes the _expectation_ comparable to the variance in the independent divisions model.
-But it should be noted that in practice the model appears to regularly pull the variance higher, sometime much, much higher.
-This violates our principle above of how fast we think variants should be allowed to take over.
+Lacking a better sense of what this should be, and keeping the above 1/16 as the target variance, I propose to us $\lambda = \xi= 1 / \sqrt{32}$.
+This makes the marginal comparable to the variance in the independent divisions model under current hyperparameter choices (an SD of 1/4).
 
 ### Model changes to consider
 

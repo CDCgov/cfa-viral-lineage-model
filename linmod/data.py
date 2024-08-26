@@ -123,6 +123,11 @@ DEFAULT_CONFIG = {
             "Wisconsin",
             "Wyoming",
         ],
+        # Which lineages should be included?
+        # If not provided, all observed lineages are included.
+        # If a list of length >= 1, all observed lineages not in this list are grouped
+        # into "other".
+        "lineages": [],
     }
 }
 """
@@ -188,13 +193,7 @@ def main(cfg: Optional[dict]):
         f'{config["data"]["horizon"]["upper"]}d'
     )
 
-    lineage_year = (
-        pl.col("lineage")
-        .replace("recombinant", "0")
-        .str.extract(r"(\d+)")
-        .str.to_integer(strict=True)
-        .add(2000)
-    )
+    model_all_lineages = len(config["data"]["lineages"]) == 0
 
     full_df = (
         pl.scan_csv(cache_path, separator="\t")
@@ -214,20 +213,24 @@ def main(cfg: Optional[dict]):
             pl.col("date") <= horizon_upper_date,
             # Drop samples claiming to be reported before being collected
             pl.col("date") <= pl.col("date_submitted"),
-            # Drop impossible lineage assigments
-            # (lineages which had not yet been named, e.g. a sequence
-            # in 2020 cannot belong to 23D)
-            pl.col("date").dt.year() >= lineage_year,
             # Drop samples not from humans in the included US divisions
             pl.col("division").is_in(config["data"]["included_divisions"]),
             country="USA",
             host="Homo sapiens",
         )
+        .with_columns(
+            lineage=pl.when(
+                pl.col("lineage").is_in(config["data"]["lineages"])
+                | model_all_lineages
+            )
+            .then(pl.col("lineage"))
+            .otherwise(pl.lit("other"))
+        )
     )
 
     eval_df = (
         full_df.group_by("lineage", "date", "division")
-        .agg(pl.len().alias("count"))
+        .agg(count=pl.len())
         .with_columns(
             fd_offset=(pl.col("date") - forecast_date).dt.total_days()
         )
@@ -243,7 +246,7 @@ def main(cfg: Optional[dict]):
     model_df = (
         full_df.filter(pl.col("date_submitted") <= forecast_date)
         .group_by("lineage", "date", "division")
-        .agg(pl.len().alias("count"))
+        .agg(count=pl.len())
         .with_columns(
             fd_offset=(pl.col("date") - forecast_date).dt.total_days()
         )
@@ -254,6 +257,16 @@ def main(cfg: Optional[dict]):
     model_df.write_csv(ValidPath(config["data"]["save_file"]["model"]))
 
     print_message(" done.")
+
+    if model_all_lineages:
+        print_message(
+            "Modeling all lineages observed in the data at any point in the horizon."
+        )
+    else:
+        print_message(
+            'Modeling the following subset of lineages, (all other lineages grouped into "other"): '
+            + str(config["data"]["lineages"])
+        )
 
 
 if __name__ == "__main__":
