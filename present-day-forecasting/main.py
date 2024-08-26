@@ -112,6 +112,9 @@ for model_name in config["forecasting"]["models"]:
         limitsize=False,
     )
 
+    # Try to free up some memory
+    del model, mcmc, convergence, plots, plot, forecast
+
     print_message("Done.")
 
 # Load the full evaluation dataset
@@ -121,7 +124,7 @@ eval_data = pl.read_csv(
 )
 
 viz_data = eval_data.filter(
-    pl.col("lineage").is_in(model.lineage_names),
+    pl.col("lineage").is_in(model_data["lineage"].unique()),
     pl.col("fd_offset") > 0,
 )
 
