@@ -118,9 +118,6 @@ for model_name in config["forecasting"]["models"]:
 
     print_message("Done.")
 
-    # Remove refs and free up some memory
-    del model, mcmc, convergence, plots, forecast
-
 # Load the full evaluation dataset
 
 eval_data = pl.read_csv(
