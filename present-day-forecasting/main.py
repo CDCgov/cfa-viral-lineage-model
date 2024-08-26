@@ -94,6 +94,9 @@ for model_name in config["forecasting"]["models"]:
         for plot, par in zip(plots, convergence["param"].to_list()):
             plot.save(plot_dir / (par + ".png"), verbose=False)
 
+        # Try to free up some memory
+        del plots, plot
+
     forecast = model.create_forecasts(
         mcmc,
         np.arange(
@@ -113,7 +116,7 @@ for model_name in config["forecasting"]["models"]:
     )
 
     # Try to free up some memory
-    del model, mcmc, convergence, plots, plot, forecast
+    del model, mcmc, convergence, forecast
 
     print_message("Done.")
 
@@ -151,7 +154,7 @@ for metric_name in config["evaluation"]["metrics"]:
             )
         )
 
-        plot_forecast(forecast, viz_data).save(
+        plot_forecast(forecast.collect(), viz_data).save(
             eval_dir / "visualizations" / f"eval_{model_name}.png",
             width=40,
             height=30,
