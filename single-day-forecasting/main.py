@@ -60,40 +60,51 @@ for model_name in config["forecasting"]["models"]:
     )
     mcmc.run(jax.random.key(0))
 
-    convergence = linmod.models.get_convergence(
-        mcmc,
-        ignore_nan_in=config["forecasting"]["mcmc"]["convergence"][
-            "ignore_nan_in"
-        ],
-    )
-
-    if (
-        config["forecasting"]["mcmc"]["convergence"]["report_mode"]
-        == "failing"
-    ):
-        convergence = convergence.filter(
-            (
-                pl.col("n_eff")
-                < config["forecasting"]["mcmc"]["convergence"]["ess_cutoff"]
-            )
-            | (
-                pl.col("r_hat")
-                > config["forecasting"]["mcmc"]["convergence"]["psrf_cutoff"]
-            )
+    try:
+        convergence = linmod.models.get_convergence(
+            mcmc,
+            ignore_nan_in=config["forecasting"]["mcmc"]["convergence"][
+                "ignore_nan_in"
+            ],
         )
-    convergence.write_csv(forecast_dir / f"convergence_{model_name}.csv")
 
-    if (
-        config["forecasting"]["mcmc"]["convergence"]["plot"]
-        and convergence.shape[0] > 0
-    ):
-        plot_dir = forecast_dir / ("convergence_" + model_name)
-        plots = linmod.models.plot_convergence(mcmc, convergence["param"])
-        for plot, par in zip(plots, convergence["param"].to_list()):
-            plot.save(plot_dir / (par + ".png"), verbose=False)
+        if (
+            config["forecasting"]["mcmc"]["convergence"]["report_mode"]
+            == "failing"
+        ):
+            convergence = convergence.filter(
+                (
+                    pl.col("n_eff")
+                    < config["forecasting"]["mcmc"]["convergence"][
+                        "ess_cutoff"
+                    ]
+                )
+                | (
+                    pl.col("r_hat")
+                    > config["forecasting"]["mcmc"]["convergence"][
+                        "psrf_cutoff"
+                    ]
+                )
+            )
+        convergence.write_csv(forecast_dir / f"convergence_{model_name}.csv")
 
-        # Try to free up some memory
-        del plots, plot
+        if (
+            config["forecasting"]["mcmc"]["convergence"]["plot"]
+            and convergence.shape[0] > 0
+        ):
+            plot_dir = forecast_dir / ("convergence_" + model_name)
+            plots = linmod.models.plot_convergence(mcmc, convergence["param"])
+            for plot, par in zip(plots, convergence["param"].to_list()):
+                plot.save(plot_dir / (par + ".png"), verbose=False)
+
+            # Try to free up some memory
+            del plots, plot
+
+        del convergence
+
+    except Exception as e:
+        print_message("An error occurred while checking convergence:")
+        print_message(e)
 
     forecast = model.create_forecasts(
         mcmc,
@@ -114,7 +125,7 @@ for model_name in config["forecasting"]["models"]:
     )
 
     # Try to free up some memory
-    del model, mcmc, convergence, forecast
+    del model, mcmc, forecast
 
     print_message("Done.")
 
