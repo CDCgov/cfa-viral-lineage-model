@@ -19,29 +19,6 @@ def plot_forecast(forecast, counts=None):
         q_upper=pl.quantile("phi", 0.9),
     )
 
-    if counts is not None:
-        day_counts = (
-            counts.group_by(pl.col("fd_offset"), pl.col("division"))
-            .agg(pl.col("count").sum().alias("n_obs"))
-            .select("fd_offset", "division", "n_obs")
-        )
-        counts = counts.with_columns(
-            f=(
-                pl.col("count") / pl.sum("count").over("fd_offset", "division")
-            ),
-        ).join(
-            day_counts,
-            on=("fd_offset", "division"),
-            how="left",
-            validate="m:1",
-        )
-        summaries = summaries.join(
-            counts,
-            on=("fd_offset", "division", "lineage"),
-            how="left",
-            validate="1:1",
-        )
-
     plot = (
         ggplot(summaries)
         + geom_ribbon(
@@ -62,7 +39,13 @@ def plot_forecast(forecast, counts=None):
         + theme_bw(base_size=20)
         + ylab("phi")
     )
+
     if counts is not None:
+        counts = counts.with_columns(
+            f=pl.col("count") / pl.sum("count").over("fd_offset", "division"),
+            n_obs=pl.sum("count").over("fd_offset", "division"),
+        )
+
         plot = (
             plot
             + geom_point(
@@ -71,8 +54,9 @@ def plot_forecast(forecast, counts=None):
                     y="f",
                     color="lineage",
                     fill="lineage",
-                    size="count",
+                    size="n_obs",
                 ),
+                data=counts,
                 alpha=0.5,
                 shape="o",
             )
