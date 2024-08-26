@@ -195,14 +195,6 @@ def main(cfg: Optional[dict]):
 
     model_all_lineages = len(config["data"]["lineages"]) == 0
 
-    lineage_year = (
-        pl.col("lineage")
-        .replace("recombinant", "0")
-        .str.extract(r"(\d+)")
-        .str.to_integer(strict=True)
-        .add(2000)
-    )
-
     full_df = (
         pl.scan_csv(cache_path, separator="\t")
         .rename({config["data"]["lineage_column_name"]: "lineage"})
@@ -221,10 +213,6 @@ def main(cfg: Optional[dict]):
             pl.col("date") <= horizon_upper_date,
             # Drop samples claiming to be reported before being collected
             pl.col("date") <= pl.col("date_submitted"),
-            # Drop impossible lineage assigments
-            # (lineages which had not yet been named, e.g. a sequence
-            # in 2020 cannot belong to 23D)
-            pl.col("date").dt.year() >= lineage_year,
             # Drop samples not from humans in the included US divisions
             pl.col("division").is_in(config["data"]["included_divisions"]),
             country="USA",
