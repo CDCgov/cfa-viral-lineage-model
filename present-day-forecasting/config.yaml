@@ -21,7 +21,7 @@ data:
     upper: 14
 
 forecasting:
-  # Where (directory) should model output be stored?
+  # Where (directory) should model output and visualizations be stored?
   save_dir: out/forecasts/
 
   # Which models should be fit?
@@ -49,8 +49,8 @@ forecasting:
       ignore_nan_in: ["Omega_decomposition"]
 
 evaluation:
-  # Where (file) should model scores be stored?
-  save_file: out/eval/results.csv
+  # Where (directory) should model scores and visualizations be stored?
+  save_dir: out/eval/
 
   # How should forecasts be evaluated?
   metrics:

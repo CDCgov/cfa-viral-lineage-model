@@ -74,17 +74,17 @@ class HierarchicalDivisionsModel:
         # beta_0[g, l] is the intercept for lineage l in division g
         mu_beta_0 = numpyro.sample(
             "mu_beta_0",
-            dist.StudentT(3, -5, 5),
+            dist.Normal(0, 0.70710678),
             sample_shape=(self.num_lineages,),
         )
         sigma_beta_0 = numpyro.sample(
             "sigma_beta_0",
-            dist.TruncatedNormal(2, 1, low=0),
+            dist.Exponential(1.0),
             sample_shape=(self.num_lineages,),
         )
         z_0 = numpyro.sample(
             "z_0",
-            dist.StudentT(2),
+            dist.Normal(0, 0.70710678),
             sample_shape=(self.num_divisions, self.num_lineages),
         )
         beta_0 = numpyro.deterministic(
@@ -93,28 +93,16 @@ class HierarchicalDivisionsModel:
         )
 
         # mu_beta_1[l] is the mean of the slope for lineage l
-        mu_hierarchical = numpyro.sample(
-            "mu_hierarchical",
-            dist.Normal(-1, np.sqrt(0.5)),
-        )
-        sigma_hierarchical = numpyro.sample(
-            "sigma_hierarchical",
-            dist.TruncatedNormal(1, np.sqrt(0.1), low=0),
-        )
-        z_mu = numpyro.sample(
-            "z_mu",
-            dist.Normal(0, 1),
-            sample_shape=(self.num_lineages,),
-        )
-        mu_beta_1 = numpyro.deterministic(
+        mu_beta_1 = numpyro.sample(
             "mu_beta_1",
-            mu_hierarchical + sigma_hierarchical * z_mu,
+            dist.Normal(0, 0.1767767),
+            sample_shape=(self.num_lineages,),
         )
 
         # beta_1[g, l] is the slope for lineage l in division g
         sigma_beta_1 = numpyro.sample(
             "sigma_beta_1",
-            dist.TruncatedNormal(0.5, 2, low=0),
+            dist.Exponential(5.65685425),
             sample_shape=(self.num_lineages,),
         )
         Omega_decomposition = numpyro.sample(
@@ -245,7 +233,7 @@ class IndependentDivisionsModel:
                 beta_0 = numpyro.sample("beta_0", dist.Normal(0, 1))
 
                 # beta_1[g, l] is the slope for lineage l in division g
-                beta_1 = numpyro.sample("beta_1", dist.Normal(0, 1))
+                beta_1 = numpyro.sample("beta_1", dist.Normal(0, 0.25))
 
         likelihood = multinomial_likelihood(
             beta_0, beta_1, self.divisions, self.time, self.N
