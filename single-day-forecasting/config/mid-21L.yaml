@@ -9,7 +9,7 @@ data:
   # modeling dataset.
   forecast_date:
     year: 2022
-    month: 1
+    month: 3
     day: 1
 
   # The modeling dataset will contain sequences collected and reported within
