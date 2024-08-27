@@ -47,7 +47,7 @@ Rows are uniquely identified by `(fd_offset, division, lineage, sample_index)`.
 	- Regression assuming spatial independence and a time covariate
 - [x] (2) Design simulation study to verify model implementation
 - [x] (3) Implement a couple metrics to evaluate population-level lineage proportion forecasts in a retrospective setting
-- [ ] (4) Conduct retrospective evaluations of our models with our metrics
+- [x] (4) Conduct retrospective evaluations of our models with our metrics
 - [ ] (5) Prepare for symposium & friends
 
 ### Wishlist
