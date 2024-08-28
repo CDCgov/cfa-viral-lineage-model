@@ -48,13 +48,13 @@ Rows are uniquely identified by `(fd_offset, division, lineage, sample_index)`.
 - [x] (2) Design simulation study to verify model implementation
 - [x] (3) Implement a couple metrics to evaluate population-level lineage proportion forecasts in a retrospective setting
 - [x] (4) Conduct retrospective evaluations of our models with our metrics
-- [ ] (5) Prepare for symposium & friends
+- [x] (5) Prepare for symposium & friends
 
 ### Wishlist
 - [ ] (6) Implement a metric to evaluate population-level lineage domination time predictions in a retrospective setting
 	- Answer two questions: will lineage X take off? Given that lineage X takes off, at what time point does it reach 50% phi?
 - [ ] (7) Can we obtain lineage growth rates in a model-agnostic way, from only posterior samples of population-level lineage proportions?
-- [ ] (8) Implement more advanced model and simulation study to verify
+- [x] (8) Implement more advanced model and simulation study to verify
 	- Regression with information sharing over space
 - [ ] (9) Study more on how to set priors on the logit scale to induce priors on the probability simplex
 - [ ] (10) Does our ability to identify "good" models change if we evaluate daily vs weekly predictions?
@@ -66,7 +66,7 @@ Rows are uniquely identified by `(fd_offset, division, lineage, sample_index)`.
 | N      | Jul 08     | 2, 3              |                                  |
 | O      | Jul 22     | 3                 |                                  |
 | P      | Aug 05     | 3, 4              | Thanasi at JSM for one week here |
-| Q      | Aug 19     | 4, 5              |                                  |
+| Q      | Aug 19     | 4, 5, 8           |                                  |
 | R      | Sep 2      |                   |                                  |
 | S      | Sep 16     |                   |                                  |
 
