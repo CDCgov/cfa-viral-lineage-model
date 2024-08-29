@@ -9,9 +9,7 @@ This repo hosts work on modeling how the composition of viral lineages, such as 
 The repo has the following structure:
 
 - `linmod/`, with a package for downloading lineage count data, and fitting and evaluating models with this data; and
-- `single-day-forecasting/`, with code for easily making retrospective forecast evaluations.
-
-See the READMEs of individual folders in `exploration` for their specific workflows.
+- `retrospective-forecasting/`, with code that uses this package to automate the retrospective evaluation of models.
 
 ### Architecture
 
