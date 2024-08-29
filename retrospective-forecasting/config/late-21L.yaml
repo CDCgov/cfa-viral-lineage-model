@@ -1,15 +1,15 @@
 data:
   # Where are the processed datasets for modeling and evaluation stored?
   save_file:
-    model: data/model.csv
-    eval: data/eval.csv
+    model: data/late-21L/model.csv
+    eval: data/late-21L/eval.csv
 
   # What is the forecast date?
   # No sequences collected or reported after this date are included in the
   # modeling dataset.
   forecast_date:
-    year: 2020
-    month: 10
+    year: 2022
+    month: 4
     day: 1
 
   # The modeling dataset will contain sequences collected and reported within
@@ -20,9 +20,13 @@ data:
     lower: -90
     upper: 14
 
+  # Which lineages should be included?
+  # All others will be aggregated into "other".
+  lineages: ["21A", "21I", "21J", "21K", "21L", "22C"]
+
 forecasting:
   # Where (directory) should model output and visualizations be stored?
-  save_dir: out/forecasts/
+  save_dir: out/forecasts/late-21L/
 
   # Which models should be fit?
   models:
@@ -50,7 +54,7 @@ forecasting:
 
 evaluation:
   # Where (directory) should model scores and visualizations be stored?
-  save_dir: out/eval/
+  save_dir: out/eval/late-21L
 
   # How should forecasts be evaluated?
   metrics:
