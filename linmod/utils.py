@@ -2,6 +2,7 @@ import sys
 from functools import reduce
 from pathlib import Path
 
+import numpy as np
 import polars as pl
 
 
@@ -71,3 +72,28 @@ def pl_softmax(pl_expr):
     Computes the softmax of the column `pl_expr`.
     """
     return pl_expr.exp() / pl_expr.exp().sum()
+
+
+def read_phi(fp: str | Path):
+    """
+    Reads forecasted proportions and formats into an ndarray of (posterior sample index, group x time, lineage)
+    """
+    df = pl.read_csv(fp)
+    assert set(
+        ["sample_index", "fd_offset", "division", "lineage", "phi"]
+    ) == set(df.columns)
+
+    indices = df["sample_index"].unique().sort()
+
+    return np.array(
+        [
+            (
+                df.filter(pl.col("sample_index") == i)
+                .pivot(
+                    on="lineage", values="phi", index=["division", "fd_offset"]
+                )
+                .drop("division", "fd_offset")
+            ).to_numpy()
+            for i in indices
+        ]
+    )
