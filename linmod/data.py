@@ -154,7 +154,9 @@ class ModelData:
         )
 
         self.all_times = np.array(range(t_min, t_max + 1))
-        self.gt = len(self.all_times) * len(data["division"].unique().sort())
+        self.num_gt = len(self.all_times) * len(
+            data["division"].unique().sort()
+        )
         self.division_names, self.divisions = np.unique(
             data["division"], return_inverse=True
         )
@@ -163,7 +165,7 @@ class ModelData:
         all_gt = expand_grid(
             division=data["division"].unique().sort(),
             fd_offset=self.all_times,
-        ).with_columns(index=pl.int_range(self.gt))
+        ).with_columns(index=pl.int_range(self.num_gt))
 
         obs_gt = (
             data.group_by(["fd_offset", "division"])
@@ -184,20 +186,15 @@ class ModelData:
 
         self.n = obs_gt["count"].to_numpy()
 
-        all_gt.join(
-            obs_gt, how="left", on=["fd_offset", "division"], validate="1:1"
-        )
+        all_gt = all_gt.join(
+            obs_gt,
+            how="left",
+            on=["fd_offset", "division"],
+            validate="1:1",
+        ).filter(pl.col("count").is_not_null())
 
-        self.slicer = tuple(
-            (
-                all_gt.join(
-                    obs_gt,
-                    how="left",
-                    on=["fd_offset", "division"],
-                    validate="1:1",
-                ).filter(pl.col("count").is_not_null())
-            )["index"]
-        )
+        self.gt = all_gt.select("division", "fd_offset")
+        self.slicer = tuple(all_gt["index"])
 
 
 def main(cfg: Optional[dict]):

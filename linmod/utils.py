@@ -74,26 +74,36 @@ def pl_softmax(pl_expr):
     return pl_expr.exp() / pl_expr.exp().sum()
 
 
-def read_phi(fp: str | Path):
+def expand_phi(samples: pl.DataFrame):
     """
-    Reads forecasted proportions and formats into an ndarray of (posterior sample index, group x time, lineage)
+    Takes phi forecasts from long to wide with a sample-index dimension
     """
-    df = pl.read_csv(fp)
+    if isinstance(samples, pl.LazyFrame):
+        samples = samples.collect()
+
     assert set(
         ["sample_index", "fd_offset", "division", "lineage", "phi"]
-    ) == set(df.columns)
+    ) == set(samples.columns)
 
-    indices = df["sample_index"].unique().sort()
+    nsamp = len(samples["sample_index"].unique())
+    nlin = len(samples["lineage"].unique())
+    ngroup = len(samples["division"].unique())
+    ntime = len(samples["fd_offset"].unique())
 
-    return np.array(
-        [
-            (
-                df.filter(pl.col("sample_index") == i)
-                .pivot(
-                    on="lineage", values="phi", index=["division", "fd_offset"]
-                )
-                .drop("division", "fd_offset")
-            ).to_numpy()
-            for i in indices
-        ]
+    # All posterior samples, as (sample x division x time) x lineage matrix
+    phi = (
+        samples.pivot(
+            on="lineage",
+            values="phi",
+            index=["sample_index", "division", "fd_offset"],
+        ).drop("division", "fd_offset", "sample_index")
+    ).to_numpy()
+
+    return np.reshape(
+        phi,
+        (
+            nsamp,
+            ngroup * ntime,
+            nlin,
+        ),
     )

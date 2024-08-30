@@ -1,6 +1,9 @@
+import numpy as np
 import polars as pl
 
-from linmod.utils import pl_list_cycle, pl_norm
+from linmod.data import ModelData
+from linmod.models import predict_counts
+from linmod.utils import expand_phi, pl_list_cycle, pl_norm
 
 
 def _merge_samples_and_data(samples, data):
@@ -26,6 +29,57 @@ def _merge_samples_and_data(samples, data):
     )
 
     return result
+
+
+def generate_eval_counts(
+    samples, data, num_samples: int | None = None, seed: int = 42
+):
+    """
+    Using the posterior distribution of population proportions in `samples` and the observed per-division-day counts in `data`, generate the forecast-predictive distribution on counts.
+
+    samples (pl.DataFrame):        Posterior samples of population proportions in the standard
+                                   model output format
+    data (pl.DataFrame):           Count data in the standard model input format.
+    num_samples (optional int):    If specified, the posterior samples will be thinned to
+                                   produce this many samples of counts. Ignored if larger
+                                   than the number of posterior samples.
+    seed (int):                    Seed for random number generation.
+    """
+    data = ModelData(
+        data, samples["fd_offset"].min(), samples["fd_offset"].max()
+    )
+    lineages = samples["lineage"].unique().sort()
+
+    # Drop missing division-days
+    phi = expand_phi(samples)[:, data.slicer, :]
+
+    niter = len(samples["sample_index"].unique())
+    if num_samples is not None and num_samples < niter:
+        keep = np.round(np.linspace(0, niter - 1, num_samples), 0).astype(int)
+        phi = phi[keep, :, :]
+
+    counts = (
+        pl.concat(
+            [
+                pl.from_numpy(
+                    np.array(
+                        predict_counts(phi_i, data.n, seed + i)
+                    ),  # Can't create from JAX array
+                    schema=lineages,
+                ).with_columns(data.gt, sample_index=pl.lit(keep[i]))
+                for phi_i, i in zip(phi, range(phi.shape[0]))
+            ]
+        )
+        .unpivot(
+            index=["sample_index", "division", "fd_offset"],
+            variable_name="lineage",
+            value_name="count",
+        )
+        .cast({"count": pl.Int64})
+    )
+
+    assert counts["count"].sum() == phi.shape[0] * data.n.sum()
+    return counts
 
 
 def proportions_mean_norm_per_division_day(samples, data, p=1):

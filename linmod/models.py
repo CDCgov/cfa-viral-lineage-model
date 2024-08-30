@@ -414,9 +414,10 @@ def multinomial_likelihood(
 def predict_counts(phi: np.ndarray, n: np.ndarray, seed):
     assert phi.shape[0] == n.shape[0]
     with numpyro.handlers.seed(rng_seed=seed):
-        numpyro.sample(
+        counts = numpyro.sample(
             "predictive", dist.Multinomial(total_count=n, probs=phi)
         )
+    return counts
 
 
 def get_convergence(
