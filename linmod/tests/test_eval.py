@@ -1,4 +1,5 @@
 import numpy as np
+import polars as pl
 from numpy.random import default_rng
 
 from linmod import eval
@@ -33,21 +34,30 @@ def _generate_fake_samples_and_data(
     data = data.with_columns(count=rng.integers(0, 100, data.shape[0]))
 
     # Generate fake forecasts of population proportions
-    samples = eval._merge_samples_and_data(
-        data,
-        expand_grid(
-            fd_offset=range(num_days),
-            division=range(num_divisions),
-            lineage=range(num_lineages),
-            sample_index=range(num_samples),
-        ),
-        samples_are_phi=True,
-    ).rename({"phi": "phi_mean"})
+    samples = (
+        data.with_columns(
+            phi=(
+                pl.col("count") / pl.sum("count").over("fd_offset", "division")
+            ),
+        )
+        .drop("count")
+        .join(
+            expand_grid(
+                fd_offset=range(num_days),
+                division=range(num_divisions),
+                lineage=range(num_lineages),
+                sample_index=range(num_samples),
+            ),
+            on=("fd_offset", "division", "lineage"),
+            how="left",
+        )
+        .rename({"phi": "phi_mean"})
+    )
 
     samples = samples.with_columns(
         phi=rng.normal(samples["phi_mean"], np.sqrt(sample_variance))
     ).drop("phi_mean")
-
+    print(samples)
     return samples.lazy(), data.lazy()
 
 
