@@ -102,13 +102,13 @@ def score(
 ) -> float:
     if agg != "sum_all":
         raise RuntimeError(
-            "I don't know how to aggregate scores except for agg='all'."
+            "I don't know how to aggregate scores except for agg='sum_all'."
         )
     return (
         fun(data, samples, samples_are_phi, **kwargs)
         .collect()
         .get_column("score")
-        .sum
+        .sum()
     )
 
 
@@ -145,7 +145,6 @@ def energy_score_per_division_day(data, samples, samples_are_phi, **kwargs):
 
     Returns a DataFrame with columns `(division, fd_offset, energy_score)`.
     """
-
     p = kwargs["p"] if "p" in kwargs.keys() else 2
     if samples_are_phi:
         col = "phi"
@@ -155,12 +154,12 @@ def energy_score_per_division_day(data, samples, samples_are_phi, **kwargs):
     # First, we will gather the values of phi' we will use for (phi-phi')
     samples = (
         samples.group_by("fd_offset", "division", "lineage")
-        .agg(pl.col("sample_index"), pl.col("sampled"))
+        .agg(pl.col("sample_index"), pl.col(col))
         .with_columns(
             sample_index=pl_list_cycle(pl.col("sample_index"), 1),
             replicate=pl_list_cycle(pl.col(col), 1),
         )
-        .explode("sample_index", "sampled", "replicate")
+        .explode("sample_index", col, "replicate")
     )
 
     return (
