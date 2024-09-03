@@ -112,7 +112,7 @@ def generate_eval_counts(
                         predict_counts(phi_i, n, seed + i)
                     ),  # Can't create from JAX array
                     schema=lineages,
-                ).with_columns(division_days, sample_index=pl.lit(keep[i]))
+                ).with_columns(division_days, sample_index=pl.lit(keep[i] + 1))
                 for phi_i, i in zip(phi, range(phi.shape[0]))
             ]
         )
