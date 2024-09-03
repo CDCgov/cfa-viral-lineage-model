@@ -3,9 +3,8 @@ from typing import Callable
 import numpy as np
 import polars as pl
 
-from linmod.data import ModelData
 from linmod.models import predict_counts
-from linmod.utils import expand_phi, pl_list_cycle, pl_norm
+from linmod.utils import expand_grid, expand_phi, pl_list_cycle, pl_norm
 
 
 def _merge_samples_and_data(data, samples, samples_are_phi: bool):
@@ -42,26 +41,63 @@ def _merge_samples_and_data(data, samples, samples_are_phi: bool):
 
 
 def generate_eval_counts(
-    samples, data, num_samples: int | None = None, seed: int = 42
+    data,
+    samples,
+    fd_min,
+    fd_max,
+    num_samples: int | None = None,
+    seed: int = 42,
 ):
     """
     Using the posterior distribution of population proportions in `samples` and the observed per-division-day counts in `data`, generate the forecast-predictive distribution on counts.
 
     samples (pl.DataFrame):        Posterior samples of population proportions in the standard
                                    model output format
-    data (pl.DataFrame):           Count data in the standard model input format.
+    data (pl.DataFrame):           Count data in the standard model input format. This should be
+                                   the data against which the predictive counts are to be scored.
     num_samples (optional int):    If specified, the posterior samples will be thinned to
                                    produce this many samples of counts. Ignored if larger
                                    than the number of posterior samples.
     seed (int):                    Seed for random number generation.
     """
-    data = ModelData(
-        data, samples["fd_offset"].min(), samples["fd_offset"].max()
-    )
-    lineages = samples["lineage"].unique().sort()
+    if isinstance(samples, pl.LazyFrame):
+        samples = samples.collect()
+    if isinstance(data, pl.LazyFrame):
+        data = data.collect()
+
+    lineages = samples["lineage"].unique().sort().to_list()
 
     # Drop missing division-days
-    phi = expand_phi(samples)[:, data.slicer, :]
+    all_times = np.array(range(fd_min, fd_max + 1))
+    division_names = samples["division"].unique().sort().to_list()
+    num_gt = len(all_times) * len(division_names)
+
+    data = data.filter(pl.col("division").is_in(division_names))
+    obs_gt = (
+        expand_grid(
+            division=division_names,
+            fd_offset=all_times,
+        )
+        .with_columns(index=pl.int_range(num_gt))
+        .join(
+            (
+                data.group_by(["fd_offset", "division"])
+                .agg(pl.col("count").sum())
+                .sort("division", "fd_offset")
+                .select("fd_offset", "division", "count")
+            ),
+            how="left",
+            on=["fd_offset", "division"],
+            validate="1:1",
+        )
+        .filter(pl.col("count").is_not_null())
+    )
+
+    slicer = tuple(obs_gt["index"])
+    n = np.array(obs_gt["count"].to_list())
+    division_days = obs_gt.select("division", "fd_offset")
+
+    phi = expand_phi(samples)[:, slicer, :]
 
     niter = len(samples["sample_index"].unique())
     if num_samples is not None and num_samples < niter:
@@ -73,10 +109,10 @@ def generate_eval_counts(
             [
                 pl.from_numpy(
                     np.array(
-                        predict_counts(phi_i, data.n, seed + i)
+                        predict_counts(phi_i, n, seed + i)
                     ),  # Can't create from JAX array
                     schema=lineages,
-                ).with_columns(data.gt, sample_index=pl.lit(keep[i]))
+                ).with_columns(division_days, sample_index=pl.lit(keep[i]))
                 for phi_i, i in zip(phi, range(phi.shape[0]))
             ]
         )
@@ -88,13 +124,13 @@ def generate_eval_counts(
         .cast({"count": pl.Int64})
     )
 
-    assert counts["count"].sum() == phi.shape[0] * data.n.sum()
+    assert counts["count"].sum() == phi.shape[0] * n.sum()
     return counts
 
 
 def score(
-    data: pl.LazyFrame,
     fun: Callable,
+    data: pl.LazyFrame,
     samples: pl.LazyFrame,
     samples_are_phi: bool,
     agg="sum_all",

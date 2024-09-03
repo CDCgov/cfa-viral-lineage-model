@@ -102,8 +102,8 @@ def test_proportions_mean_L1_norm(
 
     assert np.isclose(
         eval.score(
-            data,
             eval.mean_norm_per_division_day,
+            data,
             samples,
             samples_are_phi=True,
             p=1,
@@ -220,10 +220,6 @@ def test_proportions_L1_energy_score(
         num_samples=num_samples,
         sample_variance=sample_variance,
     )
-    print("++++++++++++++ SAMPLES ++++++++++++++")
-    print(samples.collect())
-    print("++++++++++++++ DATA ++++++++++++++")
-    print(data.collect())
 
     # Because we use L1 norm, term 1 is equal to the sum of each component's MAE from
     # its mean.
@@ -253,8 +249,8 @@ def test_proportions_L1_energy_score(
 
     assert np.isclose(
         eval.score(
-            data,
             eval.energy_score_per_division_day,
+            data,
             samples,
             samples_are_phi=True,
             p=1,

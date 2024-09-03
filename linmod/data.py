@@ -29,12 +29,11 @@ from typing import Optional
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
-import numpy as np
 import polars as pl
 import yaml
 import zstandard
 
-from .utils import ValidPath, expand_grid, print_message
+from .utils import ValidPath, print_message
 
 DEFAULT_CONFIG = {
     "data": {
@@ -137,64 +136,6 @@ Default configuration for data download, preprocessing, and export.
 The configuration dictionary expects all of the following entries in a
 `data` key.
 """
-
-
-class ModelData:
-    """
-    Mostly a polars DataFrame of filtered (group x time) x lineage count data.
-
-    Stores some extra information for convenience.
-
-    Takes in data as processed by running `python3 -m linmod.data [path/to/config.yaml]`.
-    """
-
-    def __init__(self, data: pl.DataFrame, t_min: int, t_max: int):
-        assert set(["lineage", "count", "fd_offset", "division"]).issubset(
-            data.columns
-        )
-
-        self.all_times = np.array(range(t_min, t_max + 1))
-        self.num_gt = len(self.all_times) * len(
-            data["division"].unique().sort()
-        )
-        self.division_names, self.divisions = np.unique(
-            data["division"], return_inverse=True
-        )
-        self.lineage_names = sorted(data["lineage"].unique())
-
-        all_gt = expand_grid(
-            division=data["division"].unique().sort(),
-            fd_offset=self.all_times,
-        ).with_columns(index=pl.int_range(self.num_gt))
-
-        obs_gt = (
-            data.group_by(["fd_offset", "division"])
-            .agg(pl.col("count").sum())
-            .sort("division", "fd_offset")
-            .select("fd_offset", "division", "count")
-        )
-
-        data = data.pivot(
-            on="lineage", index=["fd_offset", "division"], values="count"
-        ).fill_null(0)
-
-        self.counts = (
-            data.sort("division", "fd_offset")
-            .select(self.lineage_names)
-            .to_numpy()
-        )
-
-        self.n = obs_gt["count"].to_numpy()
-
-        all_gt = all_gt.join(
-            obs_gt,
-            how="left",
-            on=["fd_offset", "division"],
-            validate="1:1",
-        ).filter(pl.col("count").is_not_null())
-
-        self.gt = all_gt.select("division", "fd_offset")
-        self.slicer = tuple(all_gt["index"])
 
 
 def main(cfg: Optional[dict]):
