@@ -411,6 +411,15 @@ def multinomial_likelihood(
     return dist.Multinomial(total_count=N, logits=z)
 
 
+def predict_counts(phi: np.ndarray, n: np.ndarray, seed):
+    assert phi.shape[0] == n.shape[0]
+    with numpyro.handlers.seed(rng_seed=seed):
+        counts = numpyro.sample(
+            "predictive", dist.Multinomial(total_count=n, probs=phi)
+        )
+    return counts
+
+
 def get_convergence(
     mcmc: MCMC, ignore_nan_in: list[str] = [], drop_ignorable_nan: bool = True
 ) -> pl.DataFrame:

@@ -2,6 +2,7 @@ import sys
 from functools import reduce
 from pathlib import Path
 
+import numpy as np
 import polars as pl
 
 
@@ -71,3 +72,38 @@ def pl_softmax(pl_expr):
     Computes the softmax of the column `pl_expr`.
     """
     return pl_expr.exp() / pl_expr.exp().sum()
+
+
+def expand_phi(samples: pl.DataFrame):
+    """
+    Takes phi forecasts from long to wide with a sample-index dimension
+    """
+    if isinstance(samples, pl.LazyFrame):
+        samples = samples.collect()
+
+    assert set(
+        ["sample_index", "fd_offset", "division", "lineage", "phi"]
+    ) == set(samples.columns)
+
+    nsamp = len(samples["sample_index"].unique())
+    nlin = len(samples["lineage"].unique())
+    ngroup = len(samples["division"].unique())
+    ntime = len(samples["fd_offset"].unique())
+
+    # All posterior samples, as (sample x division x time) x lineage matrix
+    phi = (
+        samples.pivot(
+            on="lineage",
+            values="phi",
+            index=["sample_index", "division", "fd_offset"],
+        ).drop("division", "fd_offset", "sample_index")
+    ).to_numpy()
+
+    return np.reshape(
+        phi,
+        (
+            nsamp,
+            ngroup * ntime,
+            nlin,
+        ),
+    )

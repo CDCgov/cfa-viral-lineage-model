@@ -56,7 +56,10 @@ evaluation:
   # Where (directory) should model scores and visualizations be stored?
   save_dir: out/eval/mid-21L
 
+  # Number of posterior samples for which predictive counts will be generated
+  num_post_pred_samps: 500
+
   # How should forecasts be evaluated?
   metrics:
-    - proportions_mean_norm
-    - proportions_energy_score
+    - mean_norm
+    - energy_score

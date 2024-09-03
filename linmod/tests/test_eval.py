@@ -35,15 +35,25 @@ def _generate_fake_samples_and_data(
     data = data.with_columns(count=rng.integers(0, 100, data.shape[0]))
 
     # Generate fake forecasts of population proportions
-    samples = eval._merge_samples_and_data(
-        expand_grid(
-            fd_offset=range(num_days),
-            division=range(num_divisions),
-            lineage=range(num_lineages),
-            sample_index=range(num_samples),
-        ),
-        data,
-    ).rename({"phi": "phi_mean"})
+    samples = (
+        data.with_columns(
+            phi=(
+                pl.col("count") / pl.sum("count").over("fd_offset", "division")
+            ),
+        )
+        .drop("count")
+        .join(
+            expand_grid(
+                fd_offset=range(num_days),
+                division=range(num_divisions),
+                lineage=range(num_lineages),
+                sample_index=range(num_samples),
+            ),
+            on=("fd_offset", "division", "lineage"),
+            how="left",
+        )
+        .rename({"phi": "phi_mean"})
+    )
 
     samples = samples.with_columns(
         phi=rng.normal(samples["phi_mean"], np.sqrt(sample_variance))
@@ -91,7 +101,13 @@ def test_proportions_mean_L1_norm(
     # $|X - \mu| \sim \text{half-normal}(\sigma)$, which has this mean).
 
     assert np.isclose(
-        eval.proportions_mean_norm(samples, data, p=1),
+        eval.score(
+            eval.mean_norm_per_division_day,
+            data,
+            samples,
+            samples_are_phi=True,
+            p=1,
+        ),
         np.sqrt(sample_variance * 2 / np.pi)
         * NUM_DAYS
         * NUM_DIVISIONS
@@ -144,7 +160,7 @@ def test_proportions_mean_L1_norm2():
         {
             "fd_offset": [0, 0, 1, 1],
             "division": [0, 1, 0, 1],
-            "mean_norm": [
+            "score": [
                 np.abs(np.array([0.2, 0.3]) - 1 / (1 + 2)).mean()
                 + np.abs(np.array([0.8, 0.7]) - 2 / (1 + 2)).mean(),
                 np.abs(np.array([0.4, 0.5]) - 3 / (3 + 4)).mean()
@@ -157,8 +173,8 @@ def test_proportions_mean_L1_norm2():
         }
     )
 
-    result = eval.proportions_mean_norm_per_division_day(
-        samples, data, p=1
+    result = eval.mean_norm_per_division_day(
+        data, samples, samples_are_phi=True, p=1
     ).collect()
 
     assert_frame_equal(
@@ -232,7 +248,13 @@ def test_proportions_L1_energy_score(
     )
 
     assert np.isclose(
-        eval.proportions_energy_score(samples, data, p=1),
+        eval.score(
+            eval.energy_score_per_division_day,
+            data,
+            samples,
+            samples_are_phi=True,
+            p=1,
+        ),
         term1 - 0.5 * term2,
         atol=atol,
     )
@@ -290,7 +312,7 @@ def test_proportions_L1_energy_score2():
         {
             "fd_offset": [0, 0, 1, 1],
             "division": [0, 1, 0, 1],
-            "energy_score": [
+            "score": [
                 np.abs(np.array([0.2, 0.3, 0.1]) - 1 / (1 + 2)).mean()
                 + np.abs(np.array([0.8, 0.7, 0.9]) - 2 / (1 + 2)).mean()
                 - 0.5
@@ -335,8 +357,8 @@ def test_proportions_L1_energy_score2():
         }
     )
 
-    result = eval.proportions_energy_score_per_division_day(
-        samples, data, p=1
+    result = eval.energy_score_per_division_day(
+        data, samples, samples_are_phi=True, p=1
     ).collect()
 
     assert_frame_equal(
