@@ -146,7 +146,7 @@ eval_dir = ValidPath(config["evaluation"]["save_dir"])
 scores = []
 
 for metric_name in config["evaluation"]["metrics"]:
-    metric_function = linmod.eval.__dict__[metric_name]
+    metric_function = linmod.eval.__dict__[metric_name + "_per_division_day"]
 
     for forecast_path in forecast_dir.glob("forecasts_*.csv"):
         model_name = forecast_path.stem.split("_")[1]
@@ -157,11 +157,43 @@ for metric_name in config["evaluation"]["metrics"]:
         forecast = pl.scan_csv(forecast_path)
         scores.append(
             (
-                metric_name,
+                "proportions_" + metric_name,
                 model_name,
-                metric_function(forecast, eval_data.lazy()),
+                linmod.eval.score(
+                    metric_function,
+                    eval_data.lazy(),
+                    forecast,
+                    samples_are_phi=True,
+                ),
             )
         )
+
+        if config["evaluation"]["num_post_pred_samps"] > 0:
+            counts_file = eval_dir / f"predictive_{model_name}.csv"
+            if counts_file.exists():
+                predictive_counts = pl.read_csv(counts_file)
+            else:
+                predictive_counts = linmod.eval.generate_eval_counts(
+                    eval_data.lazy(),
+                    forecast,
+                    config["data"]["horizon"]["lower"],
+                    config["data"]["horizon"]["upper"],
+                    config["evaluation"]["num_post_pred_samps"],
+                )
+                predictive_counts.write_csv(counts_file)
+
+            scores.append(
+                (
+                    "counts_" + metric_name,
+                    model_name,
+                    linmod.eval.score(
+                        metric_function,
+                        eval_data.lazy(),
+                        predictive_counts.lazy(),
+                        samples_are_phi=False,
+                    ),
+                )
+            )
 
         plot_forecast(forecast.collect(), viz_data).save(
             eval_dir / "visualizations" / f"eval_{model_name}.png",
