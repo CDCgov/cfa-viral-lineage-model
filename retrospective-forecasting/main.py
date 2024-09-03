@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import shutil
 import sys
 
 import jax
@@ -40,12 +39,6 @@ model_data = pl.read_csv(
 # Fit each model
 
 forecast_dir = ValidPath(config["forecasting"]["save_dir"])
-
-if forecast_dir.exists():
-    print_message("Removing existing output directory and all contents.")
-    shutil.rmtree(forecast_dir)
-
-forecast_dir.mkdir()
 
 for model_name in config["forecasting"]["models"]:
     print_message(f"Fitting {model_name} model...")
