@@ -292,6 +292,11 @@ def main(cfg: Optional[dict]):
         .collect()
     )
 
+    # Generate every combination of date-division-lineage, so that:
+    #  1. The evaluation dataset will be evaluation-ready, with 0 counts
+    #     where applicable
+    #  2. The modeling dataset will have every lineage of interest represented,
+    #     even if a lineage was only sampled in the evaluation period
     observations_key = expand_grid(
         date=full_df["date"].unique(),
         division=full_df["division"].unique(),
@@ -322,10 +327,18 @@ def main(cfg: Optional[dict]):
         full_df.filter(pl.col("date_submitted") <= forecast_date)
         .group_by("lineage", "date", "division")
         .agg(count=pl.len())
+        .join(
+            observations_key,
+            on=("date", "division", "lineage"),
+            how="right",
+        )
         .with_columns(
-            fd_offset=(pl.col("date") - forecast_date).dt.total_days()
+            fd_offset=(pl.col("date") - forecast_date).dt.total_days(),
+            count=pl.col("count").fill_null(0),
         )
         .select("date", "fd_offset", "division", "lineage", "count")
+        # Remove division-days where no samples were collected, for brevity
+        .filter(pl.sum("count").over("date", "division") > 0)
     )
 
     model_df.write_parquet(ValidPath(config["data"]["save_file"]["model"]))
