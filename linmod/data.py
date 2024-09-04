@@ -31,7 +31,7 @@ import polars as pl
 import yaml
 import zstandard
 
-from .utils import ValidPath, print_message
+from .utils import ValidPath, expand_grid, print_message
 
 DEFAULT_CONFIG = {
     "data": {
@@ -289,16 +289,28 @@ def main(cfg: Optional[dict]):
             .then(pl.col("lineage"))
             .otherwise(pl.lit("other"))
         )
+        .collect()
+    )
+
+    observations_key = expand_grid(
+        date=full_df["date"].unique(),
+        division=full_df["division"].unique(),
+        lineage=full_df["lineage"].unique(),
     )
 
     eval_df = (
         full_df.group_by("lineage", "date", "division")
         .agg(count=pl.len())
+        .join(
+            observations_key,
+            on=("date", "division", "lineage"),
+            how="right",
+        )
         .with_columns(
-            fd_offset=(pl.col("date") - forecast_date).dt.total_days()
+            fd_offset=(pl.col("date") - forecast_date).dt.total_days(),
+            count=pl.col("count").fill_null(0),
         )
         .select("date", "fd_offset", "division", "lineage", "count")
-        .collect()
     )
 
     eval_df.write_parquet(ValidPath(config["data"]["save_file"]["eval"]))
@@ -314,7 +326,6 @@ def main(cfg: Optional[dict]):
             fd_offset=(pl.col("date") - forecast_date).dt.total_days()
         )
         .select("date", "fd_offset", "division", "lineage", "count")
-        .collect()
     )
 
     model_df.write_parquet(ValidPath(config["data"]["save_file"]["model"]))
