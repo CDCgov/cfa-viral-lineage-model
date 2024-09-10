@@ -128,33 +128,67 @@ eval_dir = ValidPath(config["evaluation"]["save_dir"])
 
 scores = []
 
-for metric_name in config["evaluation"]["metrics"]:
-    metric_function = getattr(linmod.eval, metric_name)
+for forecast_path in forecast_dir.glob("forecasts_*.parquet"):
+    model_name = forecast_path.stem.split("_")[1]
+    forecast = pl.scan_parquet(forecast_path)
 
-    for forecast_path in forecast_dir.glob("forecasts_*.parquet"):
-        model_name = forecast_path.stem.split("_")[1]
-        print_message(
-            f"Evaluating {model_name} model using {metric_name}...", end=""
+    for evaluator_config in config["evaluation"]["metrics"]:
+        if type(evaluator_config) is dict:
+            assert (
+                len(evaluator_config) == 1
+            ), "Evaluator config is formatted incorrectly."
+
+            evaluator_config = list(evaluator_config.items())
+            evaluator_name = evaluator_config[0][0]
+            evaluator_args = {
+                k: v for d in evaluator_config[0][1] for k, v in d.items()
+            }
+
+        else:
+            evaluator_name = evaluator_config
+            evaluator_args = {}
+
+        evaluator = getattr(linmod.eval, evaluator_name)(
+            samples=forecast,
+            data=eval_data.lazy(),
+            **evaluator_args,
         )
 
-        forecast = pl.scan_parquet(forecast_path)
-        scores.append(
-            (
-                metric_name,
-                model_name,
-                metric_function(forecast, eval_data.lazy()),
+        for metric_name, metric_function in vars(type(evaluator)).items():
+            if metric_name.startswith("_"):
+                continue
+
+            print_message(
+                (
+                    f"Evaluating {model_name} model using "
+                    f"{evaluator_name}.{metric_name}..."
+                ),
+                end="",
             )
-        )
 
-        plot_forecast(forecast.collect(), viz_data).save(
-            eval_dir / "visualizations" / f"eval_{model_name}.png",
-            width=25,
-            height=15,
-            dpi=200,
-            verbose=False,
-        )
+            scores.append(
+                (
+                    f"{evaluator_name}.{metric_name}",
+                    model_name,
+                    metric_function(evaluator),
+                )
+            )
 
-        print_message(" done.")
+            print_message(" done.")
+
+    print_message(
+        f"Visualizing {model_name} forecasts over evaluation horizon...",
+        end="",
+    )
+    plot_forecast(forecast.collect(), viz_data).save(
+        eval_dir / "visualizations" / f"eval_{model_name}.png",
+        width=25,
+        height=15,
+        dpi=200,
+        verbose=False,
+    )
+    print_message(" done.")
+
 
 print_message("Success!")
 
