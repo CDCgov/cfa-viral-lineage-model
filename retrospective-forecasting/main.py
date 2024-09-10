@@ -69,44 +69,29 @@ with open(plot_script_file, "w") as plot_script:
         mcmc.run(jax.random.key(0))
 
         try:
+            convergence_config = config["forecasting"]["mcmc"]["convergence"]
+
             convergence = linmod.models.get_convergence(
                 mcmc,
                 ignore_nan_in=model.ignore_nan_in(),
                 drop_ignorable_nan=False,
             )
 
-            if (
-                config["forecasting"]["mcmc"]["convergence"]["report_mode"]
-                == "failing"
-            ):
-                convergence = convergence.filter(
-                    (
-                        pl.col("n_eff")
-                        < config["forecasting"]["mcmc"]["convergence"][
-                            "ess_cutoff"
-                        ]
-                    )
-                    | (
-                        pl.col("r_hat")
-                        > config["forecasting"]["mcmc"]["convergence"][
-                            "psrf_cutoff"
-                        ]
-                    )
-                )
-            convergence.write_parquet(
-                forecast_dir / f"convergence_{model_name}.parquet"
+        if convergence_config["report_mode"] == "failing":
+            convergence = convergence.filter(
+                (pl.col("n_eff") < convergence_config["ess_cutoff"])
+                | (pl.col("r_hat") > convergence_config["psrf_cutoff"])
             )
+        convergence.write_parquet(
+            forecast_dir / f"convergence_{model_name}.parquet"
+        )
 
-            if (
-                config["forecasting"]["mcmc"]["convergence"]["plot"]
-                and convergence.shape[0] > 0
-            ):
-                plot_dir = forecast_dir / ("convergence_" + model_name)
-                plots = linmod.models.plot_convergence(
-                    mcmc, convergence["param"]
-                )
-                for plot, par in zip(plots, convergence["param"].to_list()):
-                    plot.save(plot_dir / (par + ".png"), verbose=False)
+        if convergence_config["plot"] and convergence.shape[0] > 0:
+            plot_dir = forecast_dir / ("convergence_" + model_name)
+            plots = linmod.models.plot_convergence(mcmc, convergence["param"])
+
+            for plot, par in zip(plots, convergence["param"].to_list()):
+                plot.save(plot_dir / (par + ".png"), verbose=False)
 
                 # Try to free up some memory
                 del plots, plot
