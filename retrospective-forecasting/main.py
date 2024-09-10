@@ -56,7 +56,7 @@ with open(plot_script_file, "w") as plot_script:
     plot_script.write("#/usr/bin/sh\n")
     for model_name in config["forecasting"]["models"]:
         print_message(f"Fitting {model_name} model...")
-        model_class = linmod.models.__dict__[model_name]
+        model_class = getattr(linmod.models, model_name)
         model = model_class(model_data)
 
         mcmc = MCMC(
@@ -167,7 +167,7 @@ with open(plot_script_file, "w") as plot_script:
 
     scores = []
     for metric_name in config["evaluation"]["metrics"]:
-        metric_function = linmod.eval.__dict__[metric_name]
+        metric_function = getattr(linmod.eval, metric_name)
 
         for forecast_path in forecast_dir.glob("forecasts_*.parquet"):
             model_name = forecast_path.stem.split("_")[1]
