@@ -66,5 +66,6 @@ evaluation:
 
   # How should forecasts be evaluated?
   metrics:
-    - proportions_mean_norm
-    - proportions_energy_score
+    - ProportionsEvaluator
+    - TimeToDominationEvaluator:
+      - lineage: 22J

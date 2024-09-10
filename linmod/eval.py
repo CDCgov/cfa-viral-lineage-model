@@ -37,7 +37,7 @@ class ProportionsEvaluator:
             )
         )
 
-    def mean_norm_per_division_day(self, p=1) -> pl.LazyFrame:
+    def _mean_norm_per_division_day(self, p=1) -> pl.LazyFrame:
         r"""
         The expected norm of proportion forecast error for each division-day.
 
@@ -62,13 +62,13 @@ class ProportionsEvaluator:
         """
 
         return (
-            self.mean_norm_per_division_day(p=p)
+            self._mean_norm_per_division_day(p=p)
             .collect()
             .get_column("mean_norm")
             .sum()
         )
 
-    def energy_score_per_division_day(self, p=2) -> pl.LazyFrame:
+    def _energy_score_per_division_day(self, p=2) -> pl.LazyFrame:
         r"""
         Monte Carlo approximation to the energy score (multivariate generalization of
         CRPS) of proportion forecasts for each division-day.
@@ -110,7 +110,7 @@ class ProportionsEvaluator:
         """
 
         return (
-            self.energy_score_per_division_day(p=p)
+            self._energy_score_per_division_day(p=p)
             .collect()
             .get_column("energy_score")
             .sum()
@@ -118,15 +118,26 @@ class ProportionsEvaluator:
 
 
 class CountEvaluator:
+    _count_samplers = {
+        "multinomial": multinomial_count_sampler,
+    }
+
     def __init__(
+        self,
         samples: pl.LazyFrame,
         data: pl.LazyFrame,
-        count_sampler: callable = multinomial_count_sampler,
+        count_sampler: str = "multinomial",
         seed: int = 42,
     ):
+        assert count_sampler in type(self)._count_samplers, (
+            f"Count sampler '{count_sampler}' not found. "
+            f"Available samplers: {', '.join(type(self)._count_samplers)}"
+        )
+        count_sampler = type(self)._count_samplers[count_sampler]
+
         rng = np.random.default_rng(seed)
 
-        return (
+        self.df = (
             data.join(
                 samples.rename({"phi": "phi_sampled"}),
                 on=("fd_offset", "division", "lineage"),
@@ -148,7 +159,7 @@ class CountEvaluator:
             .drop("phi_sampled")
         )
 
-    def mean_norm_per_division_day(self, p=1) -> pl.LazyFrame:
+    def _mean_norm_per_division_day(self, p=1) -> pl.LazyFrame:
         return (
             self.df.group_by("fd_offset", "division", "sample_index")
             .agg(norm=pl_norm(pl.col("count") - pl.col("count_sampled"), p))
@@ -158,13 +169,13 @@ class CountEvaluator:
 
     def mean_norm(self, p=1) -> float:
         return (
-            self.mean_norm_per_division_day(p=p)
+            self._mean_norm_per_division_day(p=p)
             .collect()
             .get_column("mean_norm")
             .sum()
         )
 
-    def energy_score_per_division_day(self, p=2) -> pl.LazyFrame:
+    def _energy_score_per_division_day(self, p=2) -> pl.LazyFrame:
         return (
             # First, we will gather the values of count' we will use for (count-count')
             self.df.group_by("date", "fd_offset", "division", "lineage")
@@ -192,8 +203,76 @@ class CountEvaluator:
 
     def energy_score(self, p=2) -> float:
         return (
-            self.energy_score_per_division_day(p=p)
+            self._energy_score_per_division_day(p=p)
             .collect()
             .get_column("energy_score")
+            .sum()
+        )
+
+
+class TimeToDominationEvaluator:
+    def __init__(
+        self,
+        samples: pl.LazyFrame,
+        data: pl.LazyFrame,
+        lineage: str,
+        threshold: float = 0.5,
+    ):
+        # Compute the date (after forecast date) at which the lineage
+        # first reaches the threshold. Use `null` if it never does.
+        data = (
+            data.with_columns(
+                phi=(
+                    pl.col("count")
+                    / pl.sum("count").over("fd_offset", "division")
+                ),
+            )
+            .filter(
+                pl.col("fd_offset") >= 0,
+                lineage=lineage,
+            )
+            .group_by("division")
+            .agg(
+                domination_fd_offset=pl.when(pl.col("phi") >= threshold)
+                .then("fd_offset")
+                .min()
+            )
+        )
+
+        # Do the same for each sample.
+        samples = (
+            samples.filter(
+                pl.col("fd_offset") >= 0,
+                lineage=lineage,
+            )
+            .group_by("division", "sample_index")
+            .agg(
+                domination_fd_offset=pl.when(pl.col("phi") >= threshold)
+                .then("fd_offset")
+                .min()
+            )
+        )
+
+        self.df = data.join(
+            samples,
+            on="division",
+            how="left",
+            suffix="_sampled",
+        )
+
+    def mean_norm(self, p=1) -> float:
+        return (
+            self.df.group_by("division", "sample_index")
+            .agg(
+                norm=pl_norm(
+                    pl.col("domination_fd_offset")
+                    - pl.col("domination_fd_offset_sampled"),
+                    p,
+                )
+            )
+            .group_by("division")
+            .agg(mean_norm=pl.mean("norm"))
+            .collect()
+            .get_column("mean_norm")
             .sum()
         )
