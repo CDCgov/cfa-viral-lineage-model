@@ -65,7 +65,7 @@ Rows are uniquely identified by `(fd_offset, division, lineage, sample_index)`.
 | O      | Jul 22     | 3                 |                                  |
 | P      | Aug 05     | 3, 4              | Thanasi at JSM for one week here |
 | Q      | Aug 19     | 4, 5, 8           |                                  |
-| R      | Sep 2      |                   |                                  |
+| R      | Sep 2      | 6                 |                                  |
 | S      | Sep 16     |                   |                                  |
 
 ### A ladder of (multinomial logistic regression) models for consideration
