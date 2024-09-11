@@ -264,7 +264,10 @@ def main(cfg: Optional[dict]):
         )
     else:
         print_message(
-            'Modeling the following subset of lineages, (all other lineages grouped into "other"): '
+            (
+                "Modeling the following subset of lineages, "
+                '(all other lineages grouped into "other"): '
+            )
             + str(config["data"]["lineages"])
         )
 
