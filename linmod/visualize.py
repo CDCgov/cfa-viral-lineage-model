@@ -12,12 +12,19 @@ from plotnine import (
 )
 
 
-def plot_forecast(forecast, counts=None):
+def plot_forecast(
+    forecast: pl.LazyFrame | pl.DataFrame,
+    counts: pl.DataFrame = None,
+    base_size=20,
+):
     summaries = forecast.group_by("division", "fd_offset", "lineage").agg(
         mean_phi=pl.mean("phi"),
         q_lower=pl.quantile("phi", 0.1),
         q_upper=pl.quantile("phi", 0.9),
     )
+
+    if isinstance(forecast, pl.LazyFrame):
+        summaries = summaries.collect()
 
     plot = (
         ggplot(summaries)
@@ -36,7 +43,7 @@ def plot_forecast(forecast, counts=None):
             size=1.5,
         )
         + facet_wrap("division")
-        + theme_bw(base_size=20)
+        + theme_bw(base_size=base_size)
         + ylab("phi")
     )
 
