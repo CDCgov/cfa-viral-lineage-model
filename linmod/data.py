@@ -196,7 +196,7 @@ def main(cfg: Optional[dict]):
     model_all_lineages = len(config["data"]["lineages"]) == 0
 
     full_df = (
-        pl.scan_parquet(cache_path, separator="\t")
+        pl.scan_csv(cache_path, separator="\t")
         .rename({config["data"]["lineage_column_name"]: "lineage"})
         # Cast with `strict=False` replaces invalid values with null,
         # which we can then filter out. Invalid values include dates

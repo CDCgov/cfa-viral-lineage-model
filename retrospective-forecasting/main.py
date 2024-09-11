@@ -33,9 +33,7 @@ linmod.data.main(config)
 
 # Load the dataset used for retrospective forecasting
 
-model_data = pl.read_parquet(
-    config["data"]["save_file"]["model"], try_parse_dates=True
-)
+model_data = pl.read_parquet(config["data"]["save_file"]["model"])
 
 # Fit each model
 
@@ -133,9 +131,7 @@ for model_name in config["forecasting"]["models"]:
 
 # Load the full evaluation dataset
 
-eval_data = pl.read_parquet(
-    config["data"]["save_file"]["eval"], try_parse_dates=True
-)
+eval_data = pl.read_parquet(config["data"]["save_file"]["eval"])
 
 viz_data = eval_data.filter(
     pl.col("lineage").is_in(model_data["lineage"].unique()),
@@ -167,10 +163,10 @@ for metric_name in config["evaluation"]["metrics"]:
 
         plot_forecast(forecast.collect(), viz_data).save(
             eval_dir / "visualizations" / f"eval_{model_name}.png",
-            width=40,
-            height=30,
-            dpi=300,
-            limitsize=False,
+            width=25,
+            height=15,
+            dpi=200,
+            verbose=False,
         )
 
         print_message(" done.")
