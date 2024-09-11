@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
+import argparse
 import shutil
-import sys
 
 import jax
 import numpy as np
@@ -21,11 +21,18 @@ numpyro.set_host_device_count(4)
 
 # Load configuration
 
-if len(sys.argv) != 2:
-    print_message("Usage: python3 main.py <YAML config path>")
-    sys.exit(1)
+parser = argparse.ArgumentParser(
+    description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
+parser.add_argument(
+    "config",
+    type=str,
+    help="Path to YAML configuration file",
+)
+yaml_path = parser.parse_args().config
 
-with open(sys.argv[1]) as f:
+with open(yaml_path) as f:
     config = yaml.safe_load(f)
 
 # Create the datasets

@@ -1,6 +1,4 @@
 """
-Usage: `python3 -m linmod.data [path/to/config.yaml]`
-
 Download the Nextstrain metadata file, preprocess it, and export it.
 
 Two datasets are exported: one for model fitting and one for evaluation.
@@ -22,8 +20,8 @@ Note that observations without a recorded date are removed, and only observation
 from human hosts are included.
 """
 
+import argparse
 import lzma
-import sys
 from datetime import datetime
 from typing import Optional
 from urllib.parse import urlparse
@@ -275,9 +273,22 @@ def main(cfg: Optional[dict]):
 if __name__ == "__main__":
     # Load configuration, if given
 
+    parser = argparse.ArgumentParser(
+        prog="python3 -m linmod.data",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=str,
+        help="Path to YAML configuration file",
+    )
+    yaml_path = parser.parse_args().config
+
     cfg = None
-    if len(sys.argv) > 1:
-        with open(sys.argv[1]) as f:
+    if yaml_path is not None:
+        with open(yaml_path) as f:
             cfg = yaml.safe_load(f)["data"]
 
     main(cfg)
