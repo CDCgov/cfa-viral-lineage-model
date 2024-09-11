@@ -11,12 +11,12 @@ To change default behaviors, create a yaml configuration file with the key ["dat
 and pass it in the call to this script. For a list of configurable sub-keys, see the
 `DEFAULT_CONFIG` dictionary.
 
-The output is given in CSV format, with columns `date`, `fd_offset`, `division`,
-`lineage`, `count`. Rows are uniquely identified by `(date, division, lineage)`.
-`date` and `fd_offset` can be computed from each other, given the forecast date;
-the `fd_offset` column is the number of days between the forecast date and the `date`
-column, such that, for example, 0 is the forecast date, -1 the day before, and 1 the
-day after.
+The output is given in Apache Parquet format, with columns `date`, `fd_offset`,
+`division`, `lineage`, `count`. Rows are uniquely identified by
+`(date, division, lineage)`. `date` and `fd_offset` can be computed from each other,
+given the forecast date; the `fd_offset` column is the number of days between the
+forecast date and the `date` column, such that, for example, 0 is the forecast date,
+-1 the day before, and 1 the day after.
 
 Note that observations without a recorded date are removed, and only observations
 from human hosts are included.
@@ -44,8 +44,8 @@ DEFAULT_CONFIG = {
         # Where (files) should the processed datasets for modeling and evaluation
         # be stored?
         "save_file": {
-            "model": "data/metadata-model.csv",
-            "eval": "data/metadata-eval.csv",
+            "model": "data/metadata-model.parquet",
+            "eval": "data/metadata-eval.parquet",
         },
         # Should the data be redownloaded (and the cache replaced)?
         "redownload": False,
@@ -196,7 +196,7 @@ def main(cfg: Optional[dict]):
     model_all_lineages = len(config["data"]["lineages"]) == 0
 
     full_df = (
-        pl.scan_csv(cache_path, separator="\t")
+        pl.scan_parquet(cache_path, separator="\t")
         .rename({config["data"]["lineage_column_name"]: "lineage"})
         # Cast with `strict=False` replaces invalid values with null,
         # which we can then filter out. Invalid values include dates
@@ -238,7 +238,7 @@ def main(cfg: Optional[dict]):
         .collect()
     )
 
-    eval_df.write_csv(ValidPath(config["data"]["save_file"]["eval"]))
+    eval_df.write_parquet(ValidPath(config["data"]["save_file"]["eval"]))
 
     print_message(" done.")
     print_message("Exporting modeling dataset...", end="")
@@ -254,7 +254,7 @@ def main(cfg: Optional[dict]):
         .collect()
     )
 
-    model_df.write_csv(ValidPath(config["data"]["save_file"]["model"]))
+    model_df.write_parquet(ValidPath(config["data"]["save_file"]["model"]))
 
     print_message(" done.")
 

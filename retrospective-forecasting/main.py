@@ -33,7 +33,7 @@ linmod.data.main(config)
 
 # Load the dataset used for retrospective forecasting
 
-model_data = pl.read_csv(
+model_data = pl.read_parquet(
     config["data"]["save_file"]["model"], try_parse_dates=True
 )
 
@@ -86,7 +86,9 @@ for model_name in config["forecasting"]["models"]:
                     ]
                 )
             )
-        convergence.write_csv(forecast_dir / f"convergence_{model_name}.csv")
+        convergence.write_parquet(
+            forecast_dir / f"convergence_{model_name}.parquet"
+        )
 
         if (
             config["forecasting"]["mcmc"]["convergence"]["plot"]
@@ -114,7 +116,7 @@ for model_name in config["forecasting"]["models"]:
         ),
     )
 
-    forecast.write_csv(forecast_dir / f"forecasts_{model_name}.csv")
+    forecast.write_parquet(forecast_dir / f"forecasts_{model_name}.parquet")
 
     plot_forecast(forecast, model_data).save(
         forecast_dir / "visualizations" / f"forecasts_{model_name}.png",
@@ -131,7 +133,7 @@ for model_name in config["forecasting"]["models"]:
 
 # Load the full evaluation dataset
 
-eval_data = pl.read_csv(
+eval_data = pl.read_parquet(
     config["data"]["save_file"]["eval"], try_parse_dates=True
 )
 
@@ -148,13 +150,13 @@ scores = []
 for metric_name in config["evaluation"]["metrics"]:
     metric_function = linmod.eval.__dict__[metric_name]
 
-    for forecast_path in forecast_dir.glob("forecasts_*.csv"):
+    for forecast_path in forecast_dir.glob("forecasts_*.parquet"):
         model_name = forecast_path.stem.split("_")[1]
         print_message(
             f"Evaluating {model_name} model using {metric_name}...", end=""
         )
 
-        forecast = pl.scan_csv(forecast_path)
+        forecast = pl.scan_parquet(forecast_path)
         scores.append(
             (
                 metric_name,
@@ -179,4 +181,4 @@ pl.DataFrame(
     scores,
     schema=["Metric", "Model", "Score"],
     orient="row",
-).write_csv(eval_dir / "results.csv")
+).write_parquet(eval_dir / "results.parquet")

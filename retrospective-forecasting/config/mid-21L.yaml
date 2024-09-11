@@ -1,8 +1,8 @@
 data:
   # Where are the processed datasets for modeling and evaluation stored?
   save_file:
-    model: data/mid-21L/model.csv
-    eval: data/mid-21L/eval.csv
+    model: data/mid-21L/model.parquet
+    eval: data/mid-21L/eval.parquet
 
   # What is the forecast date?
   # No sequences collected or reported after this date are included in the
@@ -40,7 +40,7 @@ forecasting:
     samples: 500
     chains: 4
     convergence:
-      # one of: "all" or "failing" to write a csv of ESS and PSRF
+      # one of: "all" or "failing" to write a parquet of ESS and PSRF
       # for all parameters or only those failing
       report_mode: "failing"
       # Should diagnostic plots for all reported parameters be made?

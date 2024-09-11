@@ -14,7 +14,7 @@ The repo has the following structure:
 ### Architecture
 
 The model is provided with lightly-preprocessed data of variant sequences from humans in the USA, from [Nextstrain](https://docs.nextstrain.org/projects/ncov/en/latest/reference/remote_inputs.html) ([data dictionary](https://docs.nextstrain.org/projects/ncov/en/latest/reference/metadata-fields.html)).
-A CSV is provided, with columns `date`, `fd_offset`, `division`, `lineage`, `count`.
+An Apache Parquet is provided, with columns `date`, `fd_offset`, `division`, `lineage`, `count`.
 Rows are uniquely identified by `(date, division, lineage)`.
 `date` and `fd_offset` can be computed from each other, given the forecast date.
 
@@ -27,7 +27,7 @@ Note that `date` is the sample collection date. `fd` refers to the forecast date
 | ...        | ...        | ...          | ...     | ...   |
 
 The model must output samples of population-level lineage proportions.
-A CSV should be provided, with columns `fd_offset`, `division`, `lineage`, `sample_index`, and `phi` (the population proportion), for `fd_offset = -30, ..., 14`.
+An Apache Parquet should be provided, with columns `fd_offset`, `division`, `lineage`, `sample_index`, and `phi` (the population proportion), for `fd_offset = -30, ..., 14`.
 Rows are uniquely identified by `(fd_offset, division, lineage, sample_index)`.
 
 | fd_offset | division | lineage | sample_index | phi            |
