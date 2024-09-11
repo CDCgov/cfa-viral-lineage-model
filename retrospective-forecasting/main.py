@@ -116,18 +116,11 @@ for model_name in config["forecasting"]["models"]:
 
     forecast.write_parquet(forecast_dir / f"forecasts_{model_name}.parquet")
 
-    plot_forecast(forecast, model_data).save(
-        forecast_dir / "visualizations" / f"forecasts_{model_name}.png",
-        width=40,
-        height=30,
-        dpi=300,
-        limitsize=False,
-    )
+    print_message("Done.")
 
     # Try to free up some memory
     del model, mcmc, forecast
 
-    print_message("Done.")
 
 # Load the full evaluation dataset
 
