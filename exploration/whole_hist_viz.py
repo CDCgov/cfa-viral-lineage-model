@@ -22,7 +22,7 @@ def get_plot_data(
         last_samp_date = last_date
 
     df = (
-        pl.scan_csv(dfp, separator="\t")
+        pl.scan_parquet(dfp, separator="\t")
         .rename({"clade_nextstrain": "lineage"})
         .cast({"date": pl.Date, "date_submitted": pl.Date}, strict=False)
         .filter(

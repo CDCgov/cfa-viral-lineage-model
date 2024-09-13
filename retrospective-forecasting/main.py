@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
+import argparse
 import shutil
-import sys
 
 import jax
 import numpy as np
@@ -21,11 +21,18 @@ numpyro.set_host_device_count(4)
 
 # Load configuration
 
-if len(sys.argv) != 2:
-    print_message("Usage: python3 main.py <YAML config path>")
-    sys.exit(1)
+parser = argparse.ArgumentParser(
+    description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
+parser.add_argument(
+    "config",
+    type=str,
+    help="Path to YAML configuration file",
+)
+yaml_path = parser.parse_args().config
 
-with open(sys.argv[1]) as f:
+with open(yaml_path) as f:
     config = yaml.safe_load(f)
 
 # Create the datasets
@@ -33,9 +40,7 @@ linmod.data.main(config)
 
 # Load the dataset used for retrospective forecasting
 
-model_data = pl.read_csv(
-    config["data"]["save_file"]["model"], try_parse_dates=True
-)
+model_data = pl.read_parquet(config["data"]["save_file"]["model"])
 
 # Fit each model
 
@@ -86,7 +91,9 @@ for model_name in config["forecasting"]["models"]:
                     ]
                 )
             )
-        convergence.write_csv(forecast_dir / f"convergence_{model_name}.csv")
+        convergence.write_parquet(
+            forecast_dir / f"convergence_{model_name}.parquet"
+        )
 
         if (
             config["forecasting"]["mcmc"]["convergence"]["plot"]
@@ -114,26 +121,17 @@ for model_name in config["forecasting"]["models"]:
         ),
     )
 
-    forecast.write_csv(forecast_dir / f"forecasts_{model_name}.csv")
+    forecast.write_parquet(forecast_dir / f"forecasts_{model_name}.parquet")
 
-    plot_forecast(forecast, model_data).save(
-        forecast_dir / "visualizations" / f"forecasts_{model_name}.png",
-        width=40,
-        height=30,
-        dpi=300,
-        limitsize=False,
-    )
+    print_message("Done.")
 
     # Try to free up some memory
     del model, mcmc, forecast
 
-    print_message("Done.")
 
 # Load the full evaluation dataset
 
-eval_data = pl.read_csv(
-    config["data"]["save_file"]["eval"], try_parse_dates=True
-)
+eval_data = pl.read_parquet(config["data"]["save_file"]["eval"])
 
 viz_data = eval_data.filter(
     pl.col("lineage").is_in(model_data["lineage"].unique()),
@@ -148,13 +146,13 @@ scores = []
 for metric_name in config["evaluation"]["metrics"]:
     metric_function = linmod.eval.__dict__[metric_name]
 
-    for forecast_path in forecast_dir.glob("forecasts_*.csv"):
+    for forecast_path in forecast_dir.glob("forecasts_*.parquet"):
         model_name = forecast_path.stem.split("_")[1]
         print_message(
             f"Evaluating {model_name} model using {metric_name}...", end=""
         )
 
-        forecast = pl.scan_csv(forecast_path)
+        forecast = pl.scan_parquet(forecast_path)
         scores.append(
             (
                 metric_name,
@@ -165,10 +163,10 @@ for metric_name in config["evaluation"]["metrics"]:
 
         plot_forecast(forecast.collect(), viz_data).save(
             eval_dir / "visualizations" / f"eval_{model_name}.png",
-            width=40,
-            height=30,
-            dpi=300,
-            limitsize=False,
+            width=25,
+            height=15,
+            dpi=200,
+            verbose=False,
         )
 
         print_message(" done.")
@@ -179,4 +177,4 @@ pl.DataFrame(
     scores,
     schema=["Metric", "Model", "Score"],
     orient="row",
-).write_csv(eval_dir / "results.csv")
+).write_parquet(eval_dir / "results.parquet")

@@ -1,6 +1,4 @@
 """
-Usage: `python3 -m linmod.data [path/to/config.yaml]`
-
 Download the Nextstrain metadata file, preprocess it, and export it.
 
 Two datasets are exported: one for model fitting and one for evaluation.
@@ -11,19 +9,19 @@ To change default behaviors, create a yaml configuration file with the key ["dat
 and pass it in the call to this script. For a list of configurable sub-keys, see the
 `DEFAULT_CONFIG` dictionary.
 
-The output is given in CSV format, with columns `date`, `fd_offset`, `division`,
-`lineage`, `count`. Rows are uniquely identified by `(date, division, lineage)`.
-`date` and `fd_offset` can be computed from each other, given the forecast date;
-the `fd_offset` column is the number of days between the forecast date and the `date`
-column, such that, for example, 0 is the forecast date, -1 the day before, and 1 the
-day after.
+The output is given in Apache Parquet format, with columns `date`, `fd_offset`,
+`division`, `lineage`, `count`. Rows are uniquely identified by
+`(date, division, lineage)`. `date` and `fd_offset` can be computed from each other,
+given the forecast date; the `fd_offset` column is the number of days between the
+forecast date and the `date` column, such that, for example, 0 is the forecast date,
+-1 the day before, and 1 the day after.
 
 Note that observations without a recorded date are removed, and only observations
 from human hosts are included.
 """
 
+import argparse
 import lzma
-import sys
 from datetime import datetime
 from typing import Optional
 from urllib.parse import urlparse
@@ -44,8 +42,8 @@ DEFAULT_CONFIG = {
         # Where (files) should the processed datasets for modeling and evaluation
         # be stored?
         "save_file": {
-            "model": "data/metadata-model.csv",
-            "eval": "data/metadata-eval.csv",
+            "model": "data/metadata-model.parquet",
+            "eval": "data/metadata-eval.parquet",
         },
         # Should the data be redownloaded (and the cache replaced)?
         "redownload": False,
@@ -238,7 +236,7 @@ def main(cfg: Optional[dict]):
         .collect()
     )
 
-    eval_df.write_csv(ValidPath(config["data"]["save_file"]["eval"]))
+    eval_df.write_parquet(ValidPath(config["data"]["save_file"]["eval"]))
 
     print_message(" done.")
     print_message("Exporting modeling dataset...", end="")
@@ -254,7 +252,7 @@ def main(cfg: Optional[dict]):
         .collect()
     )
 
-    model_df.write_csv(ValidPath(config["data"]["save_file"]["model"]))
+    model_df.write_parquet(ValidPath(config["data"]["save_file"]["model"]))
 
     print_message(" done.")
 
@@ -264,7 +262,10 @@ def main(cfg: Optional[dict]):
         )
     else:
         print_message(
-            'Modeling the following subset of lineages, (all other lineages grouped into "other"): '
+            (
+                "Modeling the following subset of lineages, "
+                '(all other lineages grouped into "other"): '
+            )
             + str(config["data"]["lineages"])
         )
 
@@ -272,9 +273,22 @@ def main(cfg: Optional[dict]):
 if __name__ == "__main__":
     # Load configuration, if given
 
+    parser = argparse.ArgumentParser(
+        prog="python3 -m linmod.data",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=str,
+        help="Path to YAML configuration file",
+    )
+    yaml_path = parser.parse_args().config
+
     cfg = None
-    if len(sys.argv) > 1:
-        with open(sys.argv[1]) as f:
+    if yaml_path is not None:
+        with open(yaml_path) as f:
             cfg = yaml.safe_load(f)["data"]
 
     main(cfg)
