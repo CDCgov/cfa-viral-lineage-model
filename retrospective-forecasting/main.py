@@ -133,7 +133,7 @@ for forecast_path in forecast_dir.glob("forecasts_*.parquet"):
     forecast = pl.scan_parquet(forecast_path)
 
     for evaluator_config in config["evaluation"]["metrics"]:
-        if type(evaluator_config) is dict:
+        if isinstance(evaluator_config, dict):
             assert (
                 len(evaluator_config) == 1
             ), "Evaluator config is formatted incorrectly."
