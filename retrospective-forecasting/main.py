@@ -171,11 +171,11 @@ with open(plot_script_file, "w") as plot_script:
         model_name = forecast_path.stem.split("_")[1]
         forecast = pl.scan_parquet(forecast_path)
 
-        for evaluator_config in config["evaluation"]["metrics"]:
-            if type(evaluator_config) is dict:
-                assert (
-                    len(evaluator_config) == 1
-                ), "Evaluator config is formatted incorrectly."
+    for evaluator_config in config["evaluation"]["metrics"]:
+        if isinstance(evaluator_config, dict):
+            assert (
+                len(evaluator_config) == 1
+            ), "Evaluator config is formatted incorrectly."
 
                 evaluator_config = list(evaluator_config.items())
                 evaluator_name = evaluator_config[0][0]
