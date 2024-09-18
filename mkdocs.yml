@@ -3,19 +3,20 @@ site_name: fall-virus-model
 nav:
   - index.md
   - notation.md
+  - architecture.md
   - api.md
 
 theme:
   name: "material"
 
 plugins:
-- mkdocstrings:
-    handlers:
-      python:
-        options:
-          show_root_heading: true
-          show_full_root_path: true
-- search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_root_heading: true
+            show_full_root_path: true
+  - search
 
 markdown_extensions:
   - pymdownx.highlight:
@@ -28,6 +29,11 @@ markdown_extensions:
   - pymdownx.arithmatex:
       generic: true
   - mdx_truly_sane_lists
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 
 extra_javascript:
   - javascript/katex.js
