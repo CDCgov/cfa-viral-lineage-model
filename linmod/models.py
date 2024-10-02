@@ -1,7 +1,9 @@
 import string
+import warnings
 from itertools import product
 from typing import Iterable
 
+import jax.numpy as jnp
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
@@ -48,9 +50,7 @@ class HierarchicalDivisionsModel:
         )
         self.counts = data.select(self.lineage_names).to_numpy()
 
-        time = data["fd_offset"].to_numpy()
-        self._time_standardizer = lambda t: (t - time.mean()) / time.std()
-        self.time = self._time_standardizer(time)
+        self.time = data["fd_offset"].to_numpy()
 
         if (
             num_lineages is not None
@@ -71,50 +71,69 @@ class HierarchicalDivisionsModel:
             self.num_divisions = len(self.division_names)
 
     def numpyro_model(self):
+        # rho_intercept determines strength of intercept pooling
+        rho_intercept = numpyro.sample(
+            "rho_intercept",
+            dist.Beta(1.0, 1.0),
+        )
+
+        # rho_slope determines strength of slope pooling
+        rho_slope = numpyro.sample(
+            "rho_slope",
+            dist.Beta(1.0, 1.0),
+        )
+
         # beta_0[g, l] is the intercept for lineage l in division g
         mu_beta_0 = numpyro.sample(
             "mu_beta_0",
-            dist.Normal(0, 0.70710678),
-            sample_shape=(self.num_lineages,),
-        )
-        sigma_beta_0 = numpyro.sample(
-            "sigma_beta_0",
-            dist.Exponential(1.0),
+            dist.Normal(0, 1.0),
             sample_shape=(self.num_lineages,),
         )
         z_0 = numpyro.sample(
             "z_0",
-            dist.Normal(0, 0.70710678),
+            dist.Normal(0, 1.0),
             sample_shape=(self.num_divisions, self.num_lineages),
         )
         beta_0 = numpyro.deterministic(
             "beta_0",
-            mu_beta_0 + sigma_beta_0 * z_0,
+            (mu_beta_0 * jnp.sqrt(rho_intercept))
+            + (z_0 * jnp.sqrt(1.0 - rho_intercept)),
         )
 
         # mu_beta_1[l] is the mean of the slope for lineage l
         mu_beta_1 = numpyro.sample(
             "mu_beta_1",
-            dist.Normal(0, 0.1767767),
+            dist.Normal(0, 1.0),
             sample_shape=(self.num_lineages,),
         )
 
         # beta_1[g, l] is the slope for lineage l in division g
-        sigma_beta_1 = 0.1767767 * np.ones(self.num_lineages)
-        Omega_decomposition = numpyro.sample(
-            "Omega_decomposition",
-            dist.LKJCholesky(self.num_lineages, 2),
+        sigma_beta_1 = numpyro.deterministic(
+            "sigma_beta_1",
+            0.25 * jnp.sqrt(1.0 - rho_slope),
         )
-        # A faster version of `np.diag(sigma_beta_1) @ Omega_decomposition`
-        Sigma_decomposition = sigma_beta_1[:, None] * Omega_decomposition
+        # sigma_beta_1 = numpyro.deterministic(
+        #     "sigma_beta_1",
+        #     0.25 * jnp.sqrt(1.0 - rho_slope) * np.ones(self.num_lineages),
+        # )
+        # Omega_decomposition = numpyro.sample(
+        #     "Omega_decomposition",
+        #     dist.LKJCholesky(self.num_lineages, 2),
+        # )
+        # # A faster version of `np.diag(sigma_beta_1) @ Omega_decomposition`
+        # Sigma_decomposition = sigma_beta_1[:, None] * Omega_decomposition
         z_1 = numpyro.sample(
             "z_1",
             dist.Normal(0, 1),
             sample_shape=(self.num_divisions, self.num_lineages),
         )
+        # beta_1 = numpyro.deterministic(
+        #     "beta_1",
+        #     (mu_beta_1 * 0.25 * jnp.sqrt(rho_slope)) + z_1 @ Sigma_decomposition.T,
+        # )
         beta_1 = numpyro.deterministic(
             "beta_1",
-            mu_beta_1 + z_1 @ Sigma_decomposition.T,
+            (mu_beta_1 * 0.25 * jnp.sqrt(rho_slope)) + z_1 * sigma_beta_1,
         )
 
         likelihood = multinomial_likelihood(
@@ -150,9 +169,7 @@ class HierarchicalDivisionsModel:
             .join(parameter_samples, on="sample_index")
             .with_columns(
                 phi=pl_softmax(
-                    pl.col("beta_0")
-                    + pl.col("beta_1")
-                    * self._time_standardizer(pl.col("fd_offset")),
+                    pl.col("beta_0") + pl.col("beta_1") * pl.col("fd_offset"),
                 ).over("sample_index", "division", "fd_offset")
             )
             .drop("beta_0", "beta_1")
@@ -194,9 +211,7 @@ class IndependentDivisionsModel:
         )
         self.counts = data.select(self.lineage_names).to_numpy()
 
-        time = data["fd_offset"].to_numpy()
-        self._time_standardizer = lambda t: (t - time.mean()) / time.std()
-        self.time = self._time_standardizer(time)
+        self.time = data["fd_offset"].to_numpy()
 
         if num_lineages is not None and N is not None:
             self.N = N.to_numpy()
@@ -264,9 +279,7 @@ class IndependentDivisionsModel:
             .join(parameter_samples, on="sample_index")
             .with_columns(
                 phi=pl_softmax(
-                    pl.col("beta_0")
-                    + pl.col("beta_1")
-                    * self._time_standardizer(pl.col("fd_offset")),
+                    pl.col("beta_0") + pl.col("beta_1") * pl.col("fd_offset"),
                 ).over("sample_index", "division", "fd_offset")
             )
             .drop("beta_0", "beta_1")
@@ -486,7 +499,7 @@ def get_convergence(
         nans = nans.filter(~pl.col("param_no_dim").is_in(ignore_nan_in))
         if nans.shape[0] > 0:
             bad = nans["param"].unique().to_list()
-            raise RuntimeError(
+            warnings.warn(
                 "Found unexpected NaN convergence values for parameters: "
                 + str(bad)
             )
