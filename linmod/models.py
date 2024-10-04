@@ -97,14 +97,12 @@ class HierarchicalDivisionsModel:
             mu_beta_0 = numpyro.sample(
                 "mu_beta_0",
                 dist.Normal(0, 1.0),
-                sample_shape=(self.num_lineages,),
             )
 
             # mu_beta_1[l] is the mean of the slope for lineage l
             mu_beta_1 = numpyro.sample(
                 "mu_beta_1",
                 dist.Normal(0, 1.0),
-                sample_shape=(self.num_lineages,),
             )
 
             with numpyro.plate(
@@ -114,10 +112,6 @@ class HierarchicalDivisionsModel:
                 z_0 = numpyro.sample(
                     "z_0",
                     dist.Normal(0, 1.0),
-                    sample_shape=(
-                        self.num_divisions,
-                        self.num_lineages,
-                    ),
                 )
                 beta_0 = numpyro.deterministic(
                     "beta_0",
@@ -128,10 +122,6 @@ class HierarchicalDivisionsModel:
                 z_1 = numpyro.sample(
                     "z_1",
                     dist.Normal(0, 1),
-                    sample_shape=(
-                        self.num_divisions,
-                        self.num_lineages,
-                    ),
                 )
                 beta_1 = numpyro.deterministic(
                     "beta_1",
@@ -177,6 +167,73 @@ class HierarchicalDivisionsModel:
             )
             .drop("beta_0", "beta_1")
         )
+
+
+class HierarchicalCorrelatedDeviationsModel(HierarchicalDivisionsModel):
+    def numpyro_model(self):
+        # rho_intercept determines strength of intercept pooling
+        rho_intercept = numpyro.sample(
+            "rho_intercept",
+            dist.Beta(1.0, 1.0),
+        )
+
+        # rho_slope determines strength of slope pooling
+        rho_slope = numpyro.sample(
+            "rho_slope",
+            dist.Beta(1.0, 1.0),
+        )
+
+        # beta_0[g, l] is the intercept for lineage l in division g
+        mu_beta_0 = numpyro.sample(
+            "mu_beta_0",
+            dist.Normal(0, 1.0),
+            sample_shape=(self.num_lineages,),
+        )
+        z_0 = numpyro.sample(
+            "z_0",
+            dist.Normal(0, 1.0),
+            sample_shape=(self.num_divisions, self.num_lineages),
+        )
+        beta_0 = numpyro.deterministic(
+            "beta_0",
+            (mu_beta_0 * jnp.sqrt(rho_intercept))
+            + (z_0 * jnp.sqrt(1.0 - rho_intercept)),
+        )
+
+        # mu_beta_1[l] is the mean of the slope for lineage l
+        mu_beta_1 = numpyro.sample(
+            "mu_beta_1",
+            dist.Normal(0, 1.0),
+            sample_shape=(self.num_lineages,),
+        )
+
+        # beta_1[g, l] is the slope for lineage l in division g
+        sigma_beta_1 = numpyro.deterministic(
+            "sigma_beta_1",
+            0.25 * jnp.sqrt(1.0 - rho_slope) * np.ones(self.num_lineages),
+        )
+        Omega_decomposition = numpyro.sample(
+            "Omega_decomposition",
+            dist.LKJCholesky(self.num_lineages, 2),
+        )
+        # A faster version of `np.diag(sigma_beta_1) @ Omega_decomposition`
+        Sigma_decomposition = sigma_beta_1[:, None] * Omega_decomposition
+        z_1 = numpyro.sample(
+            "z_1",
+            dist.Normal(0, 1),
+            sample_shape=(self.num_divisions, self.num_lineages),
+        )
+        beta_1 = numpyro.deterministic(
+            "beta_1",
+            mu_beta_1 + z_1 @ Sigma_decomposition.T,
+        )
+
+        likelihood = multinomial_likelihood(
+            beta_0, beta_1, self.divisions, self.time, self.N
+        )
+
+        # Y[i, l] is the count of lineage l for observation i
+        numpyro.sample("Y", likelihood, obs=self.counts)
 
 
 class IndependentDivisionsModel:
