@@ -71,19 +71,17 @@ class HierarchicalDivisionsModel:
             self.num_divisions = len(self.division_names)
 
     def numpyro_model(self):
-        # # rho_intercept determines strength of intercept pooling
-        # rho_intercept = numpyro.sample(
-        #     "rho_intercept",
-        #     dist.Beta(1.0, 1.0),
-        # )
+        # rho_intercept determines strength of intercept pooling
+        rho_intercept = numpyro.sample(
+            "rho_intercept",
+            dist.Beta(1.0, 1.0),
+        )
 
-        # # rho_slope determines strength of slope pooling
-        # rho_slope = numpyro.sample(
-        #     "rho_slope",
-        #     dist.Beta(1.0, 1.0),
-        # )
-        rho_intercept = 0.0
-        rho_slope = 0.0
+        # rho_slope determines strength of slope pooling
+        rho_slope = numpyro.sample(
+            "rho_slope",
+            dist.Beta(1.0, 1.0),
+        )
 
         # beta_1[g, l] is the slope for lineage l in division g
         sigma_beta_1 = numpyro.deterministic(
@@ -95,71 +93,51 @@ class HierarchicalDivisionsModel:
             "lineage",
             self.num_lineages,
         ):
-            with numpyro.handlers.reparam(
-                config={
-                    "mu_beta_0": numpyro.infer.reparam.LocScaleReparam(
-                        centered=0
-                    ),
-                    "mu_beta_1": numpyro.infer.reparam.LocScaleReparam(
-                        centered=0
-                    ),
-                }
+            # beta_0[g, l] is the intercept for lineage l in division g
+            mu_beta_0 = numpyro.sample(
+                "mu_beta_0",
+                dist.Normal(0, 1.0),
+                sample_shape=(self.num_lineages,),
+            )
+
+            # mu_beta_1[l] is the mean of the slope for lineage l
+            mu_beta_1 = numpyro.sample(
+                "mu_beta_1",
+                dist.Normal(0, 1.0),
+                sample_shape=(self.num_lineages,),
+            )
+
+            with numpyro.plate(
+                "division",
+                np.unique(self.divisions).size,
             ):
-                # beta_0[g, l] is the intercept for lineage l in division g
-                mu_beta_0 = numpyro.sample(
-                    "mu_beta_0",
+                z_0 = numpyro.sample(
+                    "z_0",
                     dist.Normal(0, 1.0),
-                    sample_shape=(self.num_lineages,),
+                    sample_shape=(
+                        self.num_divisions,
+                        self.num_lineages,
+                    ),
+                )
+                beta_0 = numpyro.deterministic(
+                    "beta_0",
+                    (mu_beta_0 * jnp.sqrt(rho_intercept))
+                    + (z_0 * jnp.sqrt(1.0 - rho_intercept)),
                 )
 
-                # mu_beta_1[l] is the mean of the slope for lineage l
-                mu_beta_1 = numpyro.sample(
-                    "mu_beta_1",
-                    dist.Normal(0, 1.0),
-                    sample_shape=(self.num_lineages,),
+                z_1 = numpyro.sample(
+                    "z_1",
+                    dist.Normal(0, 1),
+                    sample_shape=(
+                        self.num_divisions,
+                        self.num_lineages,
+                    ),
                 )
-
-                with numpyro.plate(
-                    "division",
-                    np.unique(self.divisions).size,
-                ):
-                    with numpyro.handlers.reparam(
-                        config={
-                            "z_0": numpyro.infer.reparam.LocScaleReparam(
-                                centered=0
-                            ),
-                            "z_1": numpyro.infer.reparam.LocScaleReparam(
-                                centered=0
-                            ),
-                        }
-                    ):
-                        z_0 = numpyro.sample(
-                            "z_0",
-                            dist.Normal(0, 1.0),
-                            sample_shape=(
-                                self.num_divisions,
-                                self.num_lineages,
-                            ),
-                        )
-                        beta_0 = numpyro.deterministic(
-                            "beta_0",
-                            (mu_beta_0 * jnp.sqrt(rho_intercept))
-                            + (z_0 * jnp.sqrt(1.0 - rho_intercept)),
-                        )
-
-                        z_1 = numpyro.sample(
-                            "z_1",
-                            dist.Normal(0, 1),
-                            sample_shape=(
-                                self.num_divisions,
-                                self.num_lineages,
-                            ),
-                        )
-                        beta_1 = numpyro.deterministic(
-                            "beta_1",
-                            (mu_beta_1 * 0.25 * jnp.sqrt(rho_slope))
-                            + z_1 * sigma_beta_1,
-                        )
+                beta_1 = numpyro.deterministic(
+                    "beta_1",
+                    (mu_beta_1 * 0.25 * jnp.sqrt(rho_slope))
+                    + z_1 * sigma_beta_1,
+                )
 
         likelihood = multinomial_likelihood(
             beta_0, beta_1, self.divisions, self.time, self.N
