@@ -49,7 +49,7 @@ The latent, unobservable _true_ frequency of lineage $\ell$ in the population is
   - $\boldsymbol{\phi}_{t g}$ for all _lineages_ at some time in some group.
   - $\boldsymbol{\Phi}_t$ for all _lineages_ in all _groups_ at some time
   - $\boldsymbol{\Phi}$ for all lineages in all groups at all times.
-  - The order of precedence of subscripts is lineage $l$, time $t$, and group $g$. For one single element, we have $\phi_{t g \ell}$.
+  - The order of precedence of subscripts is time $t$, group $g$, and lineage $l$. For one single element, we have $\phi_{t g \ell}$.
 
 ### Data and covariates
 
