@@ -58,7 +58,7 @@ for model_name in config["forecasting"]["models"]:
     model = model_class(model_data)
 
     mcmc = MCMC(
-        NUTS(model.numpyro_model),
+        NUTS(model.numpyro_model, dense_mass=True),
         num_samples=config["forecasting"]["mcmc"]["samples"],
         num_warmup=config["forecasting"]["mcmc"]["warmup"],
         num_chains=config["forecasting"]["mcmc"]["chains"],
