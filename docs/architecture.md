@@ -11,7 +11,8 @@ flowchart TD
 
 %% Raw data and common pre-processing
 raw_data[/Raw data/] --> preproc[Common pre-processing]
-preproc --> clean[/Clean data/]
+preproc --> clean_training[/Clean training data/]
+preproc --> clean_eval[/Clean eval data/]
 
 %% Individual models
 subgraph model1[Model 1]
@@ -30,8 +31,8 @@ output1[/Model 1 output/]
 output2[/Model 2 output/]
 
 %% Flow through the models
-clean --> preproc1 --> comp1 --> postproc1 --> output1
-clean --> preproc2 --> comp2 --> postproc2 --> output2
+clean_training --> preproc1 --> comp1 --> postproc1 --> output1
+clean_training --> preproc2 --> comp2 --> postproc2 --> output2
 
 %% Evaluation
 subgraph Evaluator
@@ -41,6 +42,8 @@ end
 
 outputs --> score1
 outputs --> score2
+clean_eval --> score1
+clean_eval --> score2
 score1 --> scores
 score2 --> scores
 scores[/Scores/]
