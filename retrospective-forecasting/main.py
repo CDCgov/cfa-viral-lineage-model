@@ -14,7 +14,6 @@ import linmod.data
 import linmod.eval
 import linmod.models
 from linmod.utils import ValidPath, print_message
-from linmod.visualize import plot_forecast
 
 numpyro.set_host_device_count(4)
 
@@ -58,19 +57,17 @@ for model_name in config["forecasting"]["models"]:
     model = model_class(model_data)
 
     mcmc = MCMC(
-        NUTS(model.numpyro_model),
+        NUTS(model.numpyro_model, dense_mass=model.dense_mass()),
         num_samples=config["forecasting"]["mcmc"]["samples"],
         num_warmup=config["forecasting"]["mcmc"]["warmup"],
         num_chains=config["forecasting"]["mcmc"]["chains"],
+        thinning=config["forecasting"]["mcmc"]["thinning"],
     )
     mcmc.run(jax.random.key(0))
 
     try:
         convergence = linmod.models.get_convergence(
-            mcmc,
-            ignore_nan_in=config["forecasting"]["mcmc"]["convergence"][
-                "ignore_nan_in"
-            ],
+            mcmc, ignore_nan_in=model.ignore_nan_in(), drop_ignorable_nan=False
         )
 
         if (
@@ -170,34 +167,47 @@ viz_data = eval_data.filter(
 eval_dir = ValidPath(config["evaluation"]["save_dir"])
 
 scores = []
+plot_script_file = f"plot_all_{eval_dir.name}.sh"
+with open(plot_script_file, "w") as plot_script:
+    plot_script.write("#/usr/bin/sh\n")
+    for metric_name in config["evaluation"]["metrics"]:
+        metric_function = linmod.eval.__dict__[metric_name]
 
-for metric_name in config["evaluation"]["metrics"]:
-    metric_function = linmod.eval.__dict__[metric_name]
-
-    for forecast_path in forecast_dir.glob("forecasts_*.parquet"):
-        model_name = forecast_path.stem.split("_")[1]
-        print_message(
-            f"Evaluating {model_name} model using {metric_name}...", end=""
-        )
-
-        forecast = pl.scan_parquet(forecast_path)
-        scores.append(
-            (
-                metric_name,
-                model_name,
-                metric_function(forecast, eval_data.lazy()),
+        for forecast_path in forecast_dir.glob("forecasts_*.parquet"):
+            model_name = forecast_path.stem.split("_")[1]
+            print_message(
+                f"Evaluating {model_name} model using {metric_name}...", end=""
             )
-        )
 
-        plot_forecast(forecast.collect(), viz_data).save(
-            eval_dir / "visualizations" / f"eval_{model_name}.png",
-            width=25,
-            height=15,
-            dpi=200,
-            verbose=False,
-        )
+            forecast = pl.read_parquet(forecast_path)
 
-        print_message(" done.")
+            forecast = forecast.lazy()
+            scores.append(
+                (
+                    metric_name,
+                    model_name,
+                    metric_function(forecast, eval_data.lazy()),
+                )
+            )
+
+            if (
+                metric_name == config["evaluation"]["metrics"][0]
+            ):  # One plot per model
+                data_path = config["data"]["save_file"]["eval"]
+                png_path = (
+                    eval_dir / "visualizations" / f"eval_{model_name}.png"
+                )
+                plot_script.write(
+                    (
+                        "python3 -m linmod.visualize "
+                        f"-f {forecast_path} "
+                        f"-d {data_path} "
+                        f"-p {png_path} "
+                        "-t eval\n"
+                    )
+                )
+
+            print_message(" done.")
 
 print_message("Success!")
 

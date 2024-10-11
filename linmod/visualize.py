@@ -1,3 +1,5 @@
+import argparse
+
 import polars as pl
 from plotnine import (
     aes,
@@ -10,6 +12,8 @@ from plotnine import (
     theme_bw,
     ylab,
 )
+
+from .utils import ValidPath
 
 
 def plot_forecast(
@@ -73,3 +77,58 @@ def plot_forecast(
         )
 
     return plot
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        prog="python3 -m linmod.visualize",
+        description="",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-f",
+        "--forecast",
+        type=str,
+        help="Path to forecast parquet file",
+    )
+    parser.add_argument(
+        "-d",
+        "--data",
+        type=str,
+        help="Path to forecasts parquet file",
+    )
+    parser.add_argument(
+        "-t",
+        "--type",
+        type=str,
+        help="eval|model, to plot evaluation or modeling data",
+    )
+    parser.add_argument(
+        "-p",
+        "--png",
+        type=str,
+        help="Path to desired path to save PNG",
+    )
+    args = parser.parse_args()
+
+    forecast = pl.read_parquet(args.forecast)
+    lineages = forecast["lineage"].unique()
+
+    if args.type == "eval":
+        fd_filter = pl.col("fd_offset") > 0
+    elif args.type == "model":
+        fd_filter = pl.col("fd_offset") <= 0
+    else:
+        raise RuntimeError("Invalid type of plot.")
+
+    data = pl.read_parquet(args.data).filter(
+        pl.col("lineage").is_in(lineages), fd_filter
+    )
+
+    plot_forecast(forecast, data).save(
+        ValidPath(args.png),
+        width=25,
+        height=15,
+        dpi=200,
+        verbose=False,
+    )

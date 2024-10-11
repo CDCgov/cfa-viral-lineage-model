@@ -1,3 +1,5 @@
+from abc import ABC, abstractmethod
+import jax.numpy as jnp
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
@@ -6,20 +8,59 @@ import polars as pl
 from ..utils import expand_grid, pl_softmax
 
 
-class HierarchicalDivisionsModel:
+class MultinomialModel(ABC):
+    def dense_mass(self):
+        """
+        For use by numpyro.infer.NUTS, specification of structure of mass matrix.
+
+        Defaults to diagonal mass matrix.
+        """
+        return False
+
+    def ignore_nan_in(self):
+        """
+        For use by get_convergence, list of model "sites" where NaN convergence
+        results are expected, such as a constant value.
+
+        Defaults to assuming NaNs are unexpected.
+        """
+        return []
+
+    @abstractmethod
+    def numpyro_model(self):
+        """
+        A NumPyro model suitable for use as `model` argument to numpyro.infer.NUTS.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_forecasts(self, mcmc, fd_offsets) -> pl.DataFrame:
+        """
+        Generate polars.DataFrame with: sample index, fd_offset, division, lineage, true proportion..
+
+        mcmc:          The MCMC.
+        fd_offsets:    The (relative) days on which to generate forecasted true proportions.
+        """
+        raise NotImplementedError
+
+
+class HierarchicalDivisionsModel(MultinomialModel):
     """
     Multinomial regression model with information sharing over divisions.
 
     Observations are counts of lineages for each division-day.
-    See https://doi.org/10.1101/2023.01.02.23284123
     No parameters are constrained here, so specific coefficients are not identifiable.
 
-    data:           A DataFrame with the standard model input format.
-    N:              A Series of total counts (across lineages) for each observation.
-                    Only required if a generative model is desired; lineage counts will
-                    then be ignored.
-    num_lineages:   The number of lineages. Only required if a generative model is
-                    desired; lineage counts will then be ignored.
+    data:              A DataFrame with the standard model input format.
+    N:                 A Series of total counts (across lineages) for each observation.
+                       Only required if a generative model is desired; lineage counts will
+                       then be ignored.
+    num_lineages:      The number of lineages. Only required if a generative model is
+                       desired; lineage counts will then be ignored.
+    pool_intercepts    A float in [0,1] which determines how strongly the intercepts are pooled.
+                       Determines the proportion of prior variance on per-division intercepts which
+                       comes from the prior variance on the shared hierarchical mean.
+    pool_slopes        Equivalent of `pool_intercepts` for slopes.
     """
 
     def __init__(
@@ -28,6 +69,8 @@ class HierarchicalDivisionsModel:
         N: pl.Series | None = None,
         num_lineages: int | None = None,
         num_divisions: int | None = None,
+        pool_intercepts: float = 0.5,
+        pool_slopes: float = 0.75,
     ):
         data = data.pivot(
             on="lineage", index=["fd_offset", "division"], values="count"
@@ -41,9 +84,7 @@ class HierarchicalDivisionsModel:
         )
         self.counts = data.select(self.lineage_names).to_numpy()
 
-        time = data["fd_offset"].to_numpy()
-        self._time_standardizer = lambda t: (t - time.mean()) / time.std()
-        self.time = self._time_standardizer(time)
+        self.time = data["fd_offset"].to_numpy()
 
         if (
             num_lineages is not None
@@ -63,51 +104,79 @@ class HierarchicalDivisionsModel:
             self.num_lineages = self.counts.shape[1]
             self.num_divisions = len(self.division_names)
 
+        # Strength of pooling, closer to 1 means more sharing across divisions
+        assert (pool_slopes >= 0.0 and pool_slopes <= 1.0) and (
+            pool_intercepts >= 0.0 and pool_intercepts <= 1.0
+        ), "Pooling strengths must be in [0,1]"
+        self.pool_beta_0 = pool_intercepts
+        self.pool_beta_1 = pool_slopes
+
+    def dense_mass(self):
+        block_diag_int = [
+            (f"z_0_{grp}",) for grp in range(np.unique(self.divisions).size)
+        ]
+        block_diag_slope = [
+            (f"z_1_{grp}",) for grp in range(np.unique(self.divisions).size)
+        ]
+        return [
+            ("z_mu_beta_0",),
+            ("z_mu_beta_1",),
+            *block_diag_slope,
+            *block_diag_int,
+        ]
+
     def numpyro_model(self):
-        # beta_0[g, l] is the intercept for lineage l in division g
-        mu_beta_0 = numpyro.sample(
-            "mu_beta_0",
-            dist.Normal(0, 0.70710678),
-            sample_shape=(self.num_lineages,),
+        sigma_beta_0 = 1.0
+        sigma_beta_1 = 0.25
+
+        sigma_global_beta_0 = jnp.sqrt(self.pool_beta_0 * sigma_beta_0)
+        sigma_global_beta_1 = jnp.sqrt(self.pool_beta_1 * sigma_beta_1)
+
+        sigma_local_beta_0 = jnp.sqrt((1.0 - self.pool_beta_0) * sigma_beta_0)
+        sigma_local_beta_1 = jnp.sqrt((1.0 - self.pool_beta_1) * sigma_beta_1)
+
+        z_mu_beta_0 = numpyro.sample(
+            "z_mu_beta_0", dist.Normal(0, 1), sample_shape=(self.num_lineages,)
         )
-        sigma_beta_0 = numpyro.sample(
-            "sigma_beta_0",
-            dist.Exponential(1.0),
-            sample_shape=(self.num_lineages,),
+
+        z_mu_beta_1 = numpyro.sample(
+            "z_mu_beta_1", dist.Normal(0, 1), sample_shape=(self.num_lineages,)
         )
-        z_0 = numpyro.sample(
-            "z_0",
-            dist.Normal(0, 0.70710678),
-            sample_shape=(self.num_divisions, self.num_lineages),
+
+        mu_beta_0 = numpyro.deterministic(
+            "mu_beta_0", z_mu_beta_0 * sigma_global_beta_0
         )
+        mu_beta_1 = numpyro.deterministic(
+            "mu_beta_1", z_mu_beta_1 * sigma_global_beta_1
+        )
+
+        v_z_0 = []
+        v_z_1 = []
+
+        for i in range(np.unique(self.divisions).size):
+            z_0 = numpyro.sample(
+                f"z_0_{i}",
+                dist.Normal(0.0, 1.0),
+                sample_shape=(self.num_lineages,),
+            )
+
+            z_1 = numpyro.sample(
+                f"z_1_{i}",
+                dist.Normal(0.0, 1.0),
+                sample_shape=(self.num_lineages,),
+            )
+
+            v_z_0.append(z_0)
+            v_z_1.append(z_1)
+
         beta_0 = numpyro.deterministic(
             "beta_0",
-            mu_beta_0 + sigma_beta_0 * z_0,
+            mu_beta_0 + (sigma_local_beta_0 * jnp.column_stack(v_z_0)).T,
         )
 
-        # mu_beta_1[l] is the mean of the slope for lineage l
-        mu_beta_1 = numpyro.sample(
-            "mu_beta_1",
-            dist.Normal(0, 0.1767767),
-            sample_shape=(self.num_lineages,),
-        )
-
-        # beta_1[g, l] is the slope for lineage l in division g
-        sigma_beta_1 = 0.1767767 * np.ones(self.num_lineages)
-        Omega_decomposition = numpyro.sample(
-            "Omega_decomposition",
-            dist.LKJCholesky(self.num_lineages, 2),
-        )
-        # A faster version of `np.diag(sigma_beta_1) @ Omega_decomposition`
-        Sigma_decomposition = sigma_beta_1[:, None] * Omega_decomposition
-        z_1 = numpyro.sample(
-            "z_1",
-            dist.Normal(0, 1),
-            sample_shape=(self.num_divisions, self.num_lineages),
-        )
         beta_1 = numpyro.deterministic(
             "beta_1",
-            mu_beta_1 + z_1 @ Sigma_decomposition.T,
+            mu_beta_1 + (sigma_local_beta_1 * jnp.column_stack(v_z_1)).T,
         )
 
         likelihood = multinomial_likelihood(
@@ -121,7 +190,7 @@ class HierarchicalDivisionsModel:
         parameter_samples = (
             expand_grid(
                 chain=np.arange(mcmc.num_chains),
-                iteration=np.arange(mcmc.num_samples),
+                iteration=np.arange(mcmc.num_samples / mcmc.thinning),
                 division=self.division_names,
                 lineage=self.lineage_names,
             )
@@ -129,7 +198,7 @@ class HierarchicalDivisionsModel:
                 beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
                 beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
                 sample_index=pl.col("iteration")
-                + pl.col("chain") * mcmc.num_samples
+                + pl.col("chain") * (mcmc.num_samples / mcmc.thinning)
                 + 1,
             )
             .drop("chain", "iteration")
@@ -143,16 +212,104 @@ class HierarchicalDivisionsModel:
             .join(parameter_samples, on="sample_index")
             .with_columns(
                 phi=pl_softmax(
-                    pl.col("beta_0")
-                    + pl.col("beta_1")
-                    * self._time_standardizer(pl.col("fd_offset")),
+                    pl.col("beta_0") + pl.col("beta_1") * pl.col("fd_offset"),
                 ).over("sample_index", "division", "fd_offset")
             )
             .drop("beta_0", "beta_1")
         )
 
 
-class IndependentDivisionsModel:
+class CorrelatedDeviationsModel(HierarchicalDivisionsModel):
+    """
+    An extension of the simple hierarchical model that adds correlations among the lineages
+    in how they deviate across sites from the global mean slopes,
+    as in https://doi.org/10.1101/2023.01.02.23284123
+    """
+
+    def dense_mass(self):
+        block_diag_int = [
+            (f"z_0_{grp}",) for grp in range(np.unique(self.divisions).size)
+        ]
+        block_diag_slope = [
+            (f"z_1_{grp}",) for grp in range(np.unique(self.divisions).size)
+        ]
+        return [
+            ("z_mu_beta_0",),
+            ("z_mu_beta_1",),
+            *block_diag_slope,
+            *block_diag_int,
+        ]
+
+    def numpyro_model(self):
+        sigma_beta_0 = 1.0
+        sigma_beta_1 = 0.25
+
+        sigma_global_beta_0 = jnp.sqrt(self.pool_beta_0 * sigma_beta_0)
+        sigma_global_beta_1 = jnp.sqrt(self.pool_beta_1 * sigma_beta_1)
+
+        sigma_local_beta_0 = jnp.sqrt((1.0 - self.pool_beta_0) * sigma_beta_0)
+        sigma_local_beta_1 = jnp.sqrt(
+            (1.0 - self.pool_beta_1) * sigma_beta_1
+        ) * np.ones(self.num_lineages)
+
+        z_mu_beta_0 = numpyro.sample("z_mu_beta_0", dist.Normal(0, 1))
+
+        z_mu_beta_1 = numpyro.sample("z_mu_beta_1", dist.Normal(0, 1))
+
+        mu_beta_0 = numpyro.deterministic(
+            "mu_beta_0", z_mu_beta_0 * sigma_global_beta_0
+        )
+        mu_beta_1 = numpyro.deterministic(
+            "mu_beta_1", z_mu_beta_1 * sigma_global_beta_1
+        )
+
+        omega_decomposition = numpyro.sample(
+            "omega_decomposition",
+            dist.LKJCholesky(self.num_lineages, 2),
+        )
+        # A faster version of `np.diag(sigma_beta_1) @ Omega_decomposition`
+        sigma_decomposition_t = (
+            sigma_local_beta_1[:, None] * omega_decomposition
+        ).T
+
+        v_z_0 = []
+        v_z_1 = []
+
+        for i in range(np.unique(self.divisions).size):
+            z_0 = numpyro.sample(
+                f"z_0_{i}",
+                dist.Normal(0.0, 1.0),
+                sample_shape=(self.num_lineages,),
+            )
+
+            z_1 = numpyro.sample(
+                f"z_1_{i}",
+                dist.Normal(0.0, 1.0),
+                sample_shape=(self.num_lineages,),
+            )
+
+            v_z_0.append(z_0)
+            v_z_1.append(z_1)
+
+        beta_0 = numpyro.deterministic(
+            "beta_0",
+            mu_beta_0 + (sigma_local_beta_0 * jnp.column_stack(v_z_0)).T,
+        )
+
+        beta_1 = numpyro.deterministic(
+            "beta_1",
+            mu_beta_1 + (jnp.column_stack(v_z_1).T @ sigma_decomposition_t),
+        )
+
+        likelihood = multinomial_likelihood(
+            beta_0, beta_1, self.divisions, self.time, self.N
+        )
+
+        # Y[i, l] is the count of lineage l for observation i
+        numpyro.sample("Y", likelihood, obs=self.counts)
+
+
+class IndependentDivisionsModel(MultinomialModel):
     """
     Multinomial regression model assuming independence between divisions and specifying
     an intercept and slope on time for each division-lineage.
@@ -187,9 +344,7 @@ class IndependentDivisionsModel:
         )
         self.counts = data.select(self.lineage_names).to_numpy()
 
-        time = data["fd_offset"].to_numpy()
-        self._time_standardizer = lambda t: (t - time.mean()) / time.std()
-        self.time = self._time_standardizer(time)
+        self.time = data["fd_offset"].to_numpy()
 
         if num_lineages is not None and N is not None:
             self.N = N.to_numpy()
@@ -203,26 +358,40 @@ class IndependentDivisionsModel:
             self.N = self.counts.sum(axis=1)
             self.num_lineages = self.counts.shape[1]
 
-    def numpyro_model(self):
-        with numpyro.plate_stack(
-            "division-lineage",
-            (np.unique(self.divisions).size, self.num_lineages),
-        ):
-            with numpyro.handlers.reparam(
-                config={
-                    "beta_0": numpyro.infer.reparam.LocScaleReparam(
-                        centered=0
-                    ),
-                    "beta_1": numpyro.infer.reparam.LocScaleReparam(
-                        centered=0
-                    ),
-                }
-            ):
-                # beta_0[g, l] is the intercept for lineage l in division g
-                beta_0 = numpyro.sample("beta_0", dist.Normal(0, 1))
+    def dense_mass(self):
+        block_diag_int = [
+            (f"v_z_0_{grp}",) for grp in range(np.unique(self.divisions).size)
+        ]
+        block_diag_slope = [
+            (f"v_z_1_{grp}",) for grp in range(np.unique(self.divisions).size)
+        ]
+        return [*block_diag_slope, *block_diag_int]
 
-                # beta_1[g, l] is the slope for lineage l in division g
-                beta_1 = numpyro.sample("beta_1", dist.Normal(0, 0.25))
+    def numpyro_model(self):
+        v_beta_0 = []
+        v_beta_1 = []
+        sigma_0 = 1.0
+        sigma_1 = 0.25
+
+        for i in range(np.unique(self.divisions).size):
+            v_z_0 = numpyro.sample(
+                f"v_z_0_{i}",
+                dist.Normal(0.0, 1.0),
+                sample_shape=(self.num_lineages,),
+            )
+
+            v_z_1 = numpyro.sample(
+                f"v_z_1_{i}",
+                dist.Normal(0.0, 1.0),
+                sample_shape=(self.num_lineages,),
+            )
+
+            v_beta_0.append(v_z_0 * sigma_0)
+            v_beta_1.append(v_z_1 * sigma_1)
+
+        beta_0 = numpyro.deterministic("beta_0", jnp.column_stack(v_beta_0).T)
+
+        beta_1 = numpyro.deterministic("beta_1", jnp.column_stack(v_beta_1).T)
 
         likelihood = multinomial_likelihood(
             beta_0, beta_1, self.divisions, self.time, self.N
@@ -235,7 +404,7 @@ class IndependentDivisionsModel:
         parameter_samples = (
             expand_grid(
                 chain=np.arange(mcmc.num_chains),
-                iteration=np.arange(mcmc.num_samples),
+                iteration=np.arange(mcmc.num_samples / mcmc.thinning),
                 division=self.division_names,
                 lineage=self.lineage_names,
             )
@@ -243,7 +412,7 @@ class IndependentDivisionsModel:
                 beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
                 beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
                 sample_index=pl.col("iteration")
-                + pl.col("chain") * mcmc.num_samples
+                + pl.col("chain") * (mcmc.num_samples / mcmc.thinning)
                 + 1,
             )
             .drop("chain", "iteration")
@@ -257,16 +426,14 @@ class IndependentDivisionsModel:
             .join(parameter_samples, on="sample_index")
             .with_columns(
                 phi=pl_softmax(
-                    pl.col("beta_0")
-                    + pl.col("beta_1")
-                    * self._time_standardizer(pl.col("fd_offset")),
+                    pl.col("beta_0") + pl.col("beta_1") * pl.col("fd_offset"),
                 ).over("sample_index", "division", "fd_offset")
             )
             .drop("beta_0", "beta_1")
         )
 
 
-class BaselineModel:
+class BaselineModel(MultinomialModel):
     """
     Multinomial model assuming independence between divisions and specifying a
     constant proportion over time for each division-lineage.
@@ -343,7 +510,7 @@ class BaselineModel:
         parameter_samples = (
             expand_grid(
                 chain=np.arange(mcmc.num_chains),
-                iteration=np.arange(mcmc.num_samples),
+                iteration=np.arange(mcmc.num_samples / mcmc.thinning),
                 division=self.division_names,
                 lineage=self.lineage_names,
             )
@@ -352,7 +519,7 @@ class BaselineModel:
                     mcmc.get_samples()["logit_phi"]
                 ).flatten(),
                 sample_index=pl.col("iteration")
-                + pl.col("chain") * mcmc.num_samples
+                + pl.col("chain") * (mcmc.num_samples / mcmc.thinning)
                 + 1,
             )
             .drop("chain", "iteration")
