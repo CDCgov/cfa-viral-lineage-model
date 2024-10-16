@@ -49,7 +49,11 @@ class HierarchicalDivisionsModel:
         self.counts = data.select(self.lineage_names).to_numpy()
 
         time = data["fd_offset"].to_numpy()
-        self._time_standardizer = lambda t: (t - time.mean()) / time.std()
+        self._time_mean = time.mean()
+        self._time_std = time.std()
+        self._time_standardizer = (
+            lambda t: (t - self._time_mean) / self._time_std
+        )
         self.time = self._time_standardizer(time)
 
         if (
@@ -117,8 +121,16 @@ class HierarchicalDivisionsModel:
             mu_beta_1 + z_1 @ Sigma_decomposition.T,
         )
 
+        # beta priors were set on the time-unstandardized scale;
+        # we need to transform the samples to use them with standardized time values.
+        # These are (beta_0 + beta_1 * time_mean) and (beta_1 * time_std), respectively.
+
         likelihood = multinomial_likelihood(
-            beta_0, beta_1, self.divisions, self.time, self.N
+            beta_0 + self._time_mean * beta_1,
+            beta_1 * self._time_std,
+            self.divisions,
+            self.time,
+            self.N,
         )
 
         # Y[i, l] is the count of lineage l for observation i
@@ -195,7 +207,11 @@ class IndependentDivisionsModel:
         self.counts = data.select(self.lineage_names).to_numpy()
 
         time = data["fd_offset"].to_numpy()
-        self._time_standardizer = lambda t: (t - time.mean()) / time.std()
+        self._time_mean = time.mean()
+        self._time_std = time.std()
+        self._time_standardizer = (
+            lambda t: (t - self._time_mean) / self._time_std
+        )
         self.time = self._time_standardizer(time)
 
         if num_lineages is not None and N is not None:
@@ -231,8 +247,16 @@ class IndependentDivisionsModel:
                 # beta_1[g, l] is the slope for lineage l in division g
                 beta_1 = numpyro.sample("beta_1", dist.Normal(0, 0.25))
 
+        # beta priors were set on the time-unstandardized scale;
+        # we need to transform the samples to use them with standardized time values.
+        # These are (beta_0 + beta_1 * time_mean) and (beta_1 * time_std), respectively.
+
         likelihood = multinomial_likelihood(
-            beta_0, beta_1, self.divisions, self.time, self.N
+            beta_0 + self._time_mean * beta_1,
+            beta_1 * self._time_std,
+            self.divisions,
+            self.time,
+            self.N,
         )
 
         # Y[i, l] is the count of lineage l for observation i
