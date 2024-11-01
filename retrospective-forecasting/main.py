@@ -124,13 +124,18 @@ for model_name in config["forecasting"]["models"]:
     forecast.write_parquet(forecast_dir / f"forecasts_{model_name}.parquet")
 
     if config["forecasting"]["survey"]["make"]:
+        # Take missing divisions out of map
+        hhs_map = {
+            div: linmod.data.hhs_regions[div]
+            for div in forecast["division"].unique()
+        }
         hhs_region_forecast = linmod.models.InfectionWeightedAggregator()(
             forecast,
-            linmod.data.hhs_regions,
+            hhs_map,
             pop_sizes=pl.read_csv(
                 config["forecasting"]["survey"]["pop_sizes"]
             ),
-        ).collect()
+        )
         hhs_region_forecast.write_parquet(
             forecast_dir / f"hhs_region_forecasts_{model_name}.parquet"
         )
