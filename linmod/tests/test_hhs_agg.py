@@ -1,4 +1,5 @@
 import polars as pl
+import pytest
 from polars.testing import assert_frame_equal
 
 from linmod.models import InfectionWeightedAggregator
@@ -82,6 +83,14 @@ def test_infection_weighted_aggregator():
         "Arizona": "HHS-9",
         "California": "HHS-9",
         "Idaho": "HHS-10",
+    }
+
+    extra_geo_map = {
+        "Arizona": "HHS-9",
+        "California": "HHS-9",
+        "Nevada": "HHS-9",
+        "Idaho": "HHS-10",
+        "Washington": "HHS-10",
     }
 
     expected_full_eq_wt = pl.DataFrame(
@@ -258,3 +267,26 @@ def test_infection_weighted_aggregator():
         check_row_order=False,
         check_column_order=True,
     )
+
+    with pytest.raises(AssertionError):
+        InfectionWeightedAggregator()(
+            state_level, extra_geo_map, pop_size=pop_size
+        )
+
+    with pytest.raises(AssertionError):
+        InfectionWeightedAggregator()(
+            state_level,
+            full_geo_map,
+            pop_size=prop_infected.filter(
+                pl.col("division").is_in(["Arizona", "Idaho", "Washington"])
+            ),
+        )
+
+    with pytest.raises(AssertionError):
+        InfectionWeightedAggregator()(
+            state_level,
+            full_geo_map,
+            pop_size=prop_infected.filter(
+                pl.col("division").is_in(["Arizona", "Idaho", "Washington"])
+            ),
+        )

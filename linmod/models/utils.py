@@ -69,11 +69,16 @@ class InfectionWeightedAggregator(GeographicAggregator):
         )
 
         assert set(geo_map.keys()).issubset(
+            set(forecast["division"].unique())
+        ), 'All divisions in `geo_map.keys()` must be in `forecast["division"].'
+
+        assert set(geo_map.keys()).issubset(
             set(pop_size["division"])
-        ), 'All regions in `geo_map.keys()` must be in `pop_size["division"].'
+        ), 'All divisions in `geo_map.keys()` must be in `pop_size["division"].'
+
         assert set(geo_map.keys()).issubset(
             set(prop_infected["division"])
-        ), 'All regions in `geo_map.keys()` must be in `prop_infected["division"].'
+        ), 'All divisions in `geo_map.keys()` must be in `prop_infected["division"].'
 
         weights = (
             pop_size.join(
@@ -82,6 +87,7 @@ class InfectionWeightedAggregator(GeographicAggregator):
             .with_columns(
                 weight=(pl.col("pop_size") * pl.col("prop_infected"))
             )
+            .filter(pl.col("division").is_in(geo_map.keys()))
             .select("division", "weight")
         )
 
