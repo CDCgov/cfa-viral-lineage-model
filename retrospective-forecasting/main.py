@@ -123,6 +123,29 @@ for model_name in config["forecasting"]["models"]:
 
     forecast.write_parquet(forecast_dir / f"forecasts_{model_name}.parquet")
 
+    if config["forecasting"]["survey"]["make"]:
+        hhs_region_forecast = linmod.models.InfectionWeightedAggregator()(
+            forecast.lazy(),
+            linmod.data.hhs_regions,
+            pop_sizes=pl.scan_csv(
+                config["forecasting"]["survey"]["pop_sizes"]
+            ),
+        ).collect()
+        hhs_region_forecast.write_parquet(
+            forecast_dir / f"hhs_region_forecasts_{model_name}.parquet"
+        )
+
+        if config["forecasting"]["survey"]["plot"]:
+            plot_forecast(hhs_region_forecast).save(
+                forecast_dir
+                / "visualizations"
+                / f"hhs_region_forecasts_{model_name}.png",
+                width=25,
+                height=15,
+                dpi=200,
+                verbose=False,
+            )
+
     print_message("Done.")
 
     # Try to free up some memory
