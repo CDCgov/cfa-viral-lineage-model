@@ -125,9 +125,9 @@ for model_name in config["forecasting"]["models"]:
 
     if config["forecasting"]["survey"]["make"]:
         hhs_region_forecast = linmod.models.InfectionWeightedAggregator()(
-            forecast.lazy(),
+            forecast,
             linmod.data.hhs_regions,
-            pop_sizes=pl.scan_csv(
+            pop_sizes=pl.read_csv(
                 config["forecasting"]["survey"]["pop_sizes"]
             ),
         ).collect()
