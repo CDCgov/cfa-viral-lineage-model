@@ -12,18 +12,11 @@ from plotnine import aes, geom_line, ggplot, theme_bw
 class GeographicAggregator(ABC):
     r"""
     Aggregate forecasts from state level to some larger grouping, like HHS divisions.
-
-    __call__ arguments
-    forecast:          A LazyFrame with the standard model output format.
-    geo_map:           A dictionary mapping "divisions" in the forecast to new units.
-                       Every existing division need not be mapped.
-
-    Returns a LazyFrame in the standard output format on the new geographical units.
     """
 
     @abstractmethod
     def __call__(
-        self, forecast: pl.LazyFrame, geo_map: dict[str, str], **kwargs
+        self, forecast: pl.DataFrame, geo_map: dict[str, str], **kwargs
     ) -> pl.LazyFrame:
         raise NotImplementedError()
 
@@ -37,6 +30,11 @@ class InfectionWeightedAggregator(GeographicAggregator):
 
     The state-level populations and proportions infected are taken to be constant over the forecasting horizon.
 
+    __call__ arguments
+    forecast:          A LazyFrame with the standard model output format.
+    geo_map:           A dictionary mapping "divisions" in the forecast to new units.
+                       Every existing division need not be mapped.
+
     __call__ keyword arguments
     pop_size:          A pl.LazyFrame with the (possibly relative) population size of each forecasted division.
                        Must contain all divisions which are in the `geo_map`, and two columns: "division" and "pop_size".
@@ -44,10 +42,12 @@ class InfectionWeightedAggregator(GeographicAggregator):
     prop_infected      A pl.LazyFrame with the proportion of the populations infected (or something proportionate thereto),
                        taken to be a constant over the modeling period. Must contain all divisions which are in the `geo_map`,
                        and two columns: "division" and "prop_infected". Defaults to equal proportions infected.
+
+    Returns a LazyFrame in the standard output format on the new geographical units.
     """
 
     def __call__(
-        self, forecast: pl.LazyFrame, geo_map: dict[str, str], **kwargs
+        self, forecast: pl.DataFrame, geo_map: dict[str, str], **kwargs
     ) -> pl.LazyFrame:
         pop_size = kwargs.get(
             "pop_size",
@@ -56,7 +56,7 @@ class InfectionWeightedAggregator(GeographicAggregator):
                     "division": geo_map.keys(),
                     "pop_size": [1.0] * len(geo_map.keys()),
                 }
-            ).lazy(),
+            ),
         )
         prop_infected = kwargs.get(
             "prop_infected",
@@ -65,10 +65,20 @@ class InfectionWeightedAggregator(GeographicAggregator):
                     "division": geo_map.keys(),
                     "prop_infected": [1.0] * len(geo_map.keys()),
                 }
-            ).lazy(),
+            ),
         )
+
+        assert set(geo_map.keys()).issubset(
+            set(pop_size["division"])
+        ), 'All regions in `geo_map.keys()` must be in `pop_size["division"].'
+        assert set(geo_map.keys()).issubset(
+            set(prop_infected["division"])
+        ), 'All regions in `geo_map.keys()` must be in `prop_infected["division"].'
+
         weights = (
-            pop_size.join(prop_infected, on="division", how="inner")
+            pop_size.join(
+                prop_infected, on="division", how="inner", validate="1:1"
+            )
             .with_columns(
                 weight=(pl.col("pop_size") * pl.col("prop_infected"))
             )
@@ -82,7 +92,7 @@ class InfectionWeightedAggregator(GeographicAggregator):
                 .replace_strict(geo_map)
                 .alias("new_division")
             )
-            .join(weights, on="division", how="left")
+            .join(weights, on="division", how="left", validate="m:1")
             .with_columns(pl.col("phi") * pl.col("weight"))
             .group_by("sample_index", "fd_offset", "new_division", "lineage")
             .agg(pl.sum("phi"))
