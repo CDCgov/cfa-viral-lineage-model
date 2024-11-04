@@ -52,6 +52,15 @@ forecasting:
       # Parameters containing fixed quantities have no variability and cause 0/0 errors
       ignore_nan_in: ["Omega_decomposition"]
 
+  # Settings for HHS region, population-weighted aggregate forecasts
+  survey:
+    # Should the HHS region forecasts be made
+    make: True
+    # Should the HHS region forecasts be plotted (they are not evaluable!)
+    plot: True
+    # Where to get population size data from, path to a CSV
+    pop_sizes: "pop_sizes_nst_est_2023.csv"
+
 evaluation:
   # Where (directory) should model scores and visualizations be stored?
   save_dir: out/eval/early-21L
