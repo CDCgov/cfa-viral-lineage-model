@@ -1,4 +1,5 @@
 import argparse
+from typing import Optional
 
 import polars as pl
 from plotnine import (
@@ -18,7 +19,7 @@ from .utils import ValidPath
 
 def plot_forecast(
     forecast: pl.LazyFrame | pl.DataFrame,
-    counts: pl.DataFrame = None,
+    counts: Optional[pl.DataFrame] = None,
     base_size=20,
 ):
     summaries = forecast.group_by("division", "fd_offset", "lineage").agg(
@@ -27,7 +28,7 @@ def plot_forecast(
         q_upper=pl.quantile("phi", 0.9),
     )
 
-    if isinstance(forecast, pl.LazyFrame):
+    if isinstance(summaries, pl.LazyFrame):
         summaries = summaries.collect()
 
     plot = (
@@ -96,12 +97,13 @@ if __name__ == "__main__":
         "--data",
         type=str,
         help="Path to forecasts parquet file",
+        default=None,
     )
     parser.add_argument(
         "-t",
         "--type",
         type=str,
-        help="eval|model, to plot evaluation or modeling data",
+        help="eval|model|nodata, to plot evaluation or modeling or no data",
     )
     parser.add_argument(
         "-p",
@@ -118,12 +120,14 @@ if __name__ == "__main__":
         fd_filter = pl.col("fd_offset") > 0
     elif args.type == "model":
         fd_filter = pl.col("fd_offset") <= 0
-    else:
+    elif not args.type == "nodata":
         raise RuntimeError("Invalid type of plot.")
 
-    data = pl.read_parquet(args.data).filter(
-        pl.col("lineage").is_in(lineages), fd_filter
-    )
+    data = None
+    if (args.type != "nodata") and (args.data is not None):
+        data = pl.read_parquet(args.data).filter(
+            pl.col("lineage").is_in(lineages), fd_filter
+        )
 
     plot_forecast(forecast, data).save(
         ValidPath(args.png),
