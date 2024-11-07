@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+
 import jax.numpy as jnp
 import numpy as np
 import numpyro
