@@ -54,7 +54,7 @@ forecast_dir.mkdir()
 
 for model_name in config["forecasting"]["models"]:
     print_message(f"Fitting {model_name} model...")
-    model_class = linmod.models.__dict__[model_name]
+    model_class = getattr(linmod.models, model_name)
     model = model_class(model_data)
 
     mcmc = MCMC(
@@ -66,41 +66,26 @@ for model_name in config["forecasting"]["models"]:
     mcmc.run(jax.random.key(0))
 
     try:
+        convergence_config = config["forecasting"]["mcmc"]["convergence"]
+
         convergence = linmod.models.get_convergence(
             mcmc,
-            ignore_nan_in=config["forecasting"]["mcmc"]["convergence"][
-                "ignore_nan_in"
-            ],
+            ignore_nan_in=convergence_config["ignore_nan_in"],
         )
 
-        if (
-            config["forecasting"]["mcmc"]["convergence"]["report_mode"]
-            == "failing"
-        ):
+        if convergence_config["report_mode"] == "failing":
             convergence = convergence.filter(
-                (
-                    pl.col("n_eff")
-                    < config["forecasting"]["mcmc"]["convergence"][
-                        "ess_cutoff"
-                    ]
-                )
-                | (
-                    pl.col("r_hat")
-                    > config["forecasting"]["mcmc"]["convergence"][
-                        "psrf_cutoff"
-                    ]
-                )
+                (pl.col("n_eff") < convergence_config["ess_cutoff"])
+                | (pl.col("r_hat") > convergence_config["psrf_cutoff"])
             )
         convergence.write_parquet(
             forecast_dir / f"convergence_{model_name}.parquet"
         )
 
-        if (
-            config["forecasting"]["mcmc"]["convergence"]["plot"]
-            and convergence.shape[0] > 0
-        ):
+        if convergence_config["plot"] and convergence.shape[0] > 0:
             plot_dir = forecast_dir / ("convergence_" + model_name)
             plots = linmod.models.plot_convergence(mcmc, convergence["param"])
+
             for plot, par in zip(plots, convergence["param"].to_list()):
                 plot.save(plot_dir / (par + ".png"), verbose=False)
 
@@ -171,33 +156,67 @@ eval_dir = ValidPath(config["evaluation"]["save_dir"])
 
 scores = []
 
-for metric_name in config["evaluation"]["metrics"]:
-    metric_function = linmod.eval.__dict__[metric_name]
+for forecast_path in forecast_dir.glob("forecasts_*.parquet"):
+    model_name = forecast_path.stem.split("_")[1]
+    forecast = pl.scan_parquet(forecast_path)
 
-    for forecast_path in forecast_dir.glob("forecasts_*.parquet"):
-        model_name = forecast_path.stem.split("_")[1]
-        print_message(
-            f"Evaluating {model_name} model using {metric_name}...", end=""
+    for evaluator_config in config["evaluation"]["metrics"]:
+        if isinstance(evaluator_config, dict):
+            assert (
+                len(evaluator_config) == 1
+            ), "Evaluator config is formatted incorrectly."
+
+            evaluator_config = list(evaluator_config.items())
+            evaluator_name = evaluator_config[0][0]
+            evaluator_args = {
+                k: v for d in evaluator_config[0][1] for k, v in d.items()
+            }
+
+        else:
+            evaluator_name = evaluator_config
+            evaluator_args = {}
+
+        evaluator = getattr(linmod.eval, evaluator_name)(
+            samples=forecast,
+            data=eval_data.lazy(),
+            **evaluator_args,
         )
 
-        forecast = pl.scan_parquet(forecast_path)
-        scores.append(
-            (
-                metric_name,
-                model_name,
-                metric_function(forecast, eval_data.lazy()),
+        for metric_name, metric_function in vars(type(evaluator)).items():
+            if metric_name.startswith("_"):
+                continue
+
+            print_message(
+                (
+                    f"Evaluating {model_name} model using "
+                    f"{evaluator_name}.{metric_name}..."
+                ),
+                end="",
             )
-        )
 
-        plot_forecast(forecast.collect(), viz_data).save(
-            eval_dir / "visualizations" / f"eval_{model_name}.png",
-            width=25,
-            height=15,
-            dpi=200,
-            verbose=False,
-        )
+            scores.append(
+                (
+                    f"{evaluator_name}.{metric_name}",
+                    model_name,
+                    metric_function(evaluator),
+                )
+            )
 
-        print_message(" done.")
+            print_message(" done.")
+
+    print_message(
+        f"Visualizing {model_name} forecasts over evaluation horizon...",
+        end="",
+    )
+    plot_forecast(forecast.collect(), viz_data).save(
+        eval_dir / "visualizations" / f"eval_{model_name}.png",
+        width=25,
+        height=15,
+        dpi=200,
+        verbose=False,
+    )
+    print_message(" done.")
+
 
 print_message("Success!")
 
