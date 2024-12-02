@@ -17,7 +17,7 @@ class GeographicAggregator(ABC):
     @abstractmethod
     def __call__(
         self, forecast: pl.DataFrame, geo_map: dict[str, str], **kwargs
-    ) -> pl.LazyFrame:
+    ) -> pl.DataFrame:
         raise NotImplementedError()
 
 
@@ -48,7 +48,7 @@ class InfectionWeightedAggregator(GeographicAggregator):
 
     def __call__(
         self, forecast: pl.DataFrame, geo_map: dict[str, str], **kwargs
-    ) -> pl.LazyFrame:
+    ) -> pl.DataFrame:
         pop_size = kwargs.get(
             "pop_size",
             pl.DataFrame(

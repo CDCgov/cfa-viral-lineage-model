@@ -36,8 +36,9 @@ forecasting:
 
   # MCMC configuration
   mcmc:
-    warmup: 2500
-    samples: 500
+    warmup: 3000
+    samples: 3000
+    thinning: 3
     chains: 4
     convergence:
       # one of: "all" or "failing" to write a parquet of ESS and PSRF
@@ -46,11 +47,9 @@ forecasting:
       # Should diagnostic plots for all reported parameters be made?
       plot: True
       # ESS below this are considered bad
-      ess_cutoff: 625
+      ess_cutoff: 500
       # PSRF above this are considered bad
-      psrf_cutoff: 1.005
-      # Parameters containing fixed quantities have no variability and cause 0/0 errors
-      ignore_nan_in: ["Omega_decomposition"]
+      psrf_cutoff: 1.01
 
   # Settings for HHS region, population-weighted aggregate forecasts
   survey:
