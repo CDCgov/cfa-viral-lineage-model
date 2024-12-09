@@ -156,7 +156,6 @@ with open(plot_script_file, "w") as plot_script:
         del model, mcmc, forecast
 
     # Load the full evaluation dataset
-
     eval_data = pl.read_parquet(config["data"]["save_file"]["eval"])
 
     viz_data = eval_data.filter(
@@ -173,61 +172,61 @@ with open(plot_script_file, "w") as plot_script:
         model_name = forecast_path.stem.split("_")[1]
         forecast = pl.scan_parquet(forecast_path)
 
-    for evaluator_config in config["evaluation"]["metrics"]:
-        if isinstance(evaluator_config, dict):
-            assert (
-                len(evaluator_config) == 1
-            ), "Evaluator config is formatted incorrectly."
+        for evaluator_config in config["evaluation"]["metrics"]:
+            if isinstance(evaluator_config, dict):
+                assert (
+                    len(evaluator_config) == 1
+                ), "Evaluator config is formatted incorrectly."
 
-            evaluator_config = list(evaluator_config.items())
-            evaluator_name = evaluator_config[0][0]
-            evaluator_args = {
-                k: v for d in evaluator_config[0][1] for k, v in d.items()
-            }
+                evaluator_config = list(evaluator_config.items())
+                evaluator_name = evaluator_config[0][0]
+                evaluator_args = {
+                    k: v for d in evaluator_config[0][1] for k, v in d.items()
+                }
 
-        else:
-            evaluator_name = evaluator_config
-            evaluator_args = {}
+            else:
+                evaluator_name = evaluator_config
+                evaluator_args = {}
 
-        evaluator = getattr(linmod.eval, evaluator_name)(
-            samples=forecast,
-            data=eval_data.lazy(),
-            **evaluator_args,
-        )
-
-        for metric_name, metric_function in vars(type(evaluator)).items():
-            if metric_name.startswith("_"):
-                continue
-
-            print_message(
-                (
-                    f"Evaluating {model_name} model using "
-                    f"{evaluator_name}.{metric_name}..."
-                ),
-                end="",
+            evaluator = getattr(linmod.eval, evaluator_name)(
+                samples=forecast,
+                data=eval_data.lazy(),
+                **evaluator_args,
             )
 
-            scores.append(
-                (
-                    f"{evaluator_name}.{metric_name}",
-                    model_name,
-                    metric_function(evaluator),
+            for metric_name, metric_function in vars(type(evaluator)).items():
+                if metric_name.startswith("_"):
+                    continue
+
+                print_message(
+                    (
+                        f"Evaluating {model_name} model using "
+                        f"{evaluator_name}.{metric_name}..."
+                    ),
+                    end="",
                 )
+
+                scores.append(
+                    (
+                        f"{evaluator_name}.{metric_name}",
+                        model_name,
+                        metric_function(evaluator),
+                    )
+                )
+
+                print_message(" done.")
+
+        data_path = config["data"]["save_file"]["eval"]
+        png_path = eval_dir / "visualizations" / f"eval_{model_name}.png"
+        plot_script.write(
+            (
+                "python3 -m linmod.visualize "
+                f"-f {forecast_path} "
+                f"-d {data_path} "
+                f"-p {png_path} "
+                "-t eval\n"
             )
-
-            print_message(" done.")
-
-    data_path = config["data"]["save_file"]["eval"]
-    png_path = eval_dir / "visualizations" / f"eval_{model_name}.png"
-    plot_script.write(
-        (
-            "python3 -m linmod.visualize "
-            f"-f {forecast_path} "
-            f"-d {data_path} "
-            f"-p {png_path} "
-            "-t eval\n"
         )
-    )
 
 
 print_message("Success!")
