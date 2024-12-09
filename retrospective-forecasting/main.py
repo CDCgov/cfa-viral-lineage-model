@@ -235,4 +235,4 @@ pl.DataFrame(
     scores,
     schema=["Metric", "Model", "Score"],
     orient="row",
-).write_parquet(eval_dir / "results.parquet")
+).write_csv(eval_dir / "results.csv")
