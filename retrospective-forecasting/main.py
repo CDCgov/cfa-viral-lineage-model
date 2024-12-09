@@ -95,10 +95,10 @@ with open(plot_script_file, "w") as plot_script:
                 for plot, par in zip(plots, convergence["param"].to_list()):
                     plot.save(plot_dir / (par + ".png"), verbose=False)
 
-                    # Try to free up some memory
-                    del plots, plot
+                # Try to free up some memory
+                del plots, plot
 
-                del convergence
+            del convergence
 
         except Exception as e:
             print_message("An error occurred while checking convergence:")
