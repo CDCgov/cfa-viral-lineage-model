@@ -67,5 +67,4 @@ evaluation:
   # How should forecasts be evaluated?
   metrics:
     - ProportionsEvaluator
-    - TimeToDominationEvaluator:
-      - lineage: 22J
+    - CountsEvaluator

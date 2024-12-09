@@ -117,7 +117,7 @@ class ProportionsEvaluator:
         )
 
 
-class CountEvaluator:
+class CountsEvaluator:
     _count_samplers = {
         "multinomial": multinomial_count_sampler,
     }
@@ -206,73 +206,5 @@ class CountEvaluator:
             self._energy_score_per_division_day(p=p)
             .collect()
             .get_column("energy_score")
-            .sum()
-        )
-
-
-class TimeToDominationEvaluator:
-    def __init__(
-        self,
-        samples: pl.LazyFrame,
-        data: pl.LazyFrame,
-        lineage: str,
-        threshold: float = 0.5,
-    ):
-        # Compute the date (after forecast date) at which the lineage
-        # first reaches the threshold. Use `null` if it never does.
-        data = (
-            data.with_columns(
-                phi=(
-                    pl.col("count")
-                    / pl.sum("count").over("fd_offset", "division")
-                ),
-            )
-            .filter(
-                pl.col("fd_offset") >= 0,
-                lineage=lineage,
-            )
-            .group_by("division")
-            .agg(
-                domination_fd_offset=pl.when(pl.col("phi") >= threshold)
-                .then("fd_offset")
-                .min()
-            )
-        )
-
-        # Do the same for each sample.
-        samples = (
-            samples.filter(
-                pl.col("fd_offset") >= 0,
-                lineage=lineage,
-            )
-            .group_by("division", "sample_index")
-            .agg(
-                domination_fd_offset=pl.when(pl.col("phi") >= threshold)
-                .then("fd_offset")
-                .min()
-            )
-        )
-
-        self.df = data.join(
-            samples,
-            on="division",
-            how="left",
-            suffix="_sampled",
-        )
-
-    def mean_norm(self, p=1) -> float:
-        return (
-            self.df.group_by("division", "sample_index")
-            .agg(
-                norm=pl_norm(
-                    pl.col("domination_fd_offset")
-                    - pl.col("domination_fd_offset_sampled"),
-                    p,
-                )
-            )
-            .group_by("division")
-            .agg(mean_norm=pl.mean("norm"))
-            .collect()
-            .get_column("mean_norm")
             .sum()
         )
