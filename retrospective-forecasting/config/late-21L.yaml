@@ -67,4 +67,5 @@ evaluation:
   # How should forecasts be evaluated?
   metrics:
     - ProportionsEvaluator
-    - CountsEvaluator
+    - CountsEvaluator:
+      - count_sampler: multinomial
