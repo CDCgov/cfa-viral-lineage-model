@@ -318,6 +318,10 @@ def main(cfg: Optional[dict]):
         .select("date", "fd_offset", "division", "lineage", "count")
     )
 
+    assert (
+        eval_df.null_count().sum_horizontal().item() == 0
+    ), "Null values detected in evaluation dataset."
+
     eval_df.write_parquet(ValidPath(config["data"]["save_file"]["eval"]))
 
     print_message(" done.")
@@ -340,6 +344,10 @@ def main(cfg: Optional[dict]):
         # Remove division-days where no samples were collected, for brevity
         .filter(pl.sum("count").over("date", "division") > 0)
     )
+
+    assert (
+        model_df.null_count().sum_horizontal().item() == 0
+    ), "Null values detected in modeling dataset."
 
     model_df.write_parquet(ValidPath(config["data"]["save_file"]["model"]))
 
