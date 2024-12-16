@@ -32,18 +32,27 @@ def _generate_fake_samples_and_data(
         lineage=range(num_lineages),
     )
 
-    data = data.with_columns(count=rng.integers(0, 100, data.shape[0]))
+    data = data.with_columns(
+        count=rng.integers(0, 100, data.shape[0]),
+        date=pl.col("fd_offset"),
+    )
 
     # Generate fake forecasts of population proportions
-    samples = eval._merge_samples_and_data(
-        expand_grid(
-            fd_offset=range(num_days),
-            division=range(num_divisions),
-            lineage=range(num_lineages),
-            sample_index=range(num_samples),
-        ),
-        data,
-    ).rename({"phi": "phi_mean"})
+    samples = expand_grid(
+        fd_offset=range(num_days),
+        division=range(num_divisions),
+        lineage=range(num_lineages),
+        sample_index=range(num_samples),
+    ).join(
+        data.with_columns(
+            phi_mean=(
+                pl.col("count") / pl.sum("count").over("fd_offset", "division")
+            ),
+        ).drop("count"),
+        on=("fd_offset", "division", "lineage"),
+        how="left",
+        suffix="_sampled",
+    )
 
     samples = samples.with_columns(
         phi=rng.normal(samples["phi_mean"], np.sqrt(sample_variance))
@@ -91,7 +100,7 @@ def test_proportions_mean_L1_norm(
     # $|X - \mu| \sim \text{half-normal}(\sigma)$, which has this mean).
 
     assert np.isclose(
-        eval.proportions_mean_norm(samples, data, p=1),
+        eval.ProportionsEvaluator(samples, data).mean_norm(p=1),
         np.sqrt(sample_variance * 2 / np.pi)
         * NUM_DAYS
         * NUM_DIVISIONS
@@ -157,9 +166,11 @@ def test_proportions_mean_L1_norm2():
         }
     )
 
-    result = eval.proportions_mean_norm_per_division_day(
-        samples, data, p=1
-    ).collect()
+    result = (
+        eval.ProportionsEvaluator(samples, data)
+        ._mean_norm_per_division_day(p=1)
+        .collect()
+    )
 
     assert_frame_equal(
         result,
@@ -232,7 +243,7 @@ def test_proportions_L1_energy_score(
     )
 
     assert np.isclose(
-        eval.proportions_energy_score(samples, data, p=1),
+        eval.ProportionsEvaluator(samples, data).energy_score(p=1),
         term1 - 0.5 * term2,
         atol=atol,
     )
@@ -335,9 +346,11 @@ def test_proportions_L1_energy_score2():
         }
     )
 
-    result = eval.proportions_energy_score_per_division_day(
-        samples, data, p=1
-    ).collect()
+    result = (
+        eval.ProportionsEvaluator(samples, data)
+        ._energy_score_per_division_day(p=1)
+        .collect()
+    )
 
     assert_frame_equal(
         result,
