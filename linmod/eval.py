@@ -1,11 +1,24 @@
 import numpy as np
 import polars as pl
+from numpy.typing import ArrayLike
 
 from linmod.utils import pl_list_cycle, pl_norm
 
 
-def multinomial_count_sampler(N, phi, rng):
-    return rng.multinomial(N, phi)
+def multinomial_count_sampler(
+    n: ArrayLike,
+    p: ArrayLike,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """
+    Samples from a `multinomial(n, p)` distribution.
+
+    Compatible shapes of `n` and `p` include:
+    - `n` is a scalar, `p` is a vector
+    - `n` is a vector, `p` is a matrix with rows corresponding to entries in `n`
+    """
+
+    return rng.multinomial(n, p)
 
 
 class ProportionsEvaluator:
