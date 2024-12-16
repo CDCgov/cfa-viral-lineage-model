@@ -127,7 +127,7 @@ class CountsEvaluator:
         samples: pl.LazyFrame,
         data: pl.LazyFrame,
         count_sampler: str = "multinomial",
-        seed: int = 42,
+        seed: int = None,
     ):
         assert count_sampler in type(self)._count_samplers, (
             f"Count sampler '{count_sampler}' not found. "
