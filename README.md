@@ -57,17 +57,6 @@ Rows are uniquely identified by `(fd_offset, division, lineage, sample_index)`.
 - [ ] (9) Study more on how to set priors on the logit scale to induce priors on the probability simplex
 - [ ] (10) Does our ability to identify "good" models change if we evaluate daily vs weekly predictions?
 
-| Sprint | Start Date | Target milestones | Notes                            |
-| ------ | ---------- | ----------------- | -------------------------------- |
-| L      | Jun 10     | 1                 |                                  |
-| M      | Jun 24     | 1, 2              |                                  |
-| N      | Jul 08     | 2, 3              |                                  |
-| O      | Jul 22     | 3                 |                                  |
-| P      | Aug 05     | 3, 4              | Thanasi at JSM for one week here |
-| Q      | Aug 19     | 4, 5, 8           |                                  |
-| R      | Sep 2      |                   |                                  |
-| S      | Sep 16     |                   |                                  |
-
 ### A ladder of (multinomial logistic regression) models for consideration
 
 It seems useful to start at the bottom of the ladder, both for debugging purposes, but also to get a sense of the added predictive power of each step.
