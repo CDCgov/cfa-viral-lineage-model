@@ -40,7 +40,6 @@ class ProportionsEvaluator:
             .drop("count")
             # NaN will appear on division-days where none of the lineages
             # were sampled. We will filter these out.
-            # TODO: Is this good to do?
             .filter(pl.col("phi").is_not_nan())
             .join(
                 samples,
@@ -86,7 +85,7 @@ class ProportionsEvaluator:
         Monte Carlo approximation to the energy score (multivariate generalization of
         CRPS) of proportion forecasts for each division-day.
 
-        $E[ || f_{tg} - \phi_{tg} ||_p ] - \frac{1}{2} E[ || f_{tg} - \f_{tg}' ||_p ]$
+        $E[ || f_{tg} - \phi_{tg} ||_p ] - \frac{1}{2} E[ || f_{tg} - f_{tg}' ||_p ]$
 
         Returns a data frame with columns `(division, fd_offset, energy_score)`.
         """
@@ -142,6 +141,16 @@ class CountsEvaluator:
         count_sampler: str = "multinomial",
         seed: int = None,
     ):
+        r"""
+        Evaluates count forecasts $\hat{Y}$ sampled from a specified observation model given model
+        proportion forecasts.
+
+        `samples` should have the standard model output format.
+        `data` should have the standard model input format.
+        `count_sampler` should be one of the keys in `CountsEvaluator._count_samplers`.
+        `seed` is an optional random seed for the count sampler.
+        """
+
         assert count_sampler in type(self)._count_samplers, (
             f"Count sampler '{count_sampler}' not found. "
             f"Available samplers: {', '.join(type(self)._count_samplers)}"
@@ -173,6 +182,14 @@ class CountsEvaluator:
         )
 
     def _mean_norm_per_division_day(self, p=1) -> pl.LazyFrame:
+        r"""
+        The expected norm of count forecast error for each division-day.
+
+        $E[ || \hat{Y}_{tg} - Y_{tg} ||_p ]$
+
+        Returns a data frame with columns `(division, fd_offset, mean_norm)`.
+        """
+
         return (
             self.df.group_by("fd_offset", "division", "sample_index")
             .agg(norm=pl_norm(pl.col("count") - pl.col("count_sampled"), p))
@@ -181,6 +198,13 @@ class CountsEvaluator:
         )
 
     def mean_norm(self, p=1) -> float:
+        r"""
+        The expected norm of count forecast error, summed over all divisions
+        and days.
+
+        $\sum_{t, g} E[ || \hat{Y}_{tg} - Y_{tg} ||_p ]$
+        """
+
         return (
             self._mean_norm_per_division_day(p=p)
             .collect()
@@ -189,6 +213,15 @@ class CountsEvaluator:
         )
 
     def _energy_score_per_division_day(self, p=2) -> pl.LazyFrame:
+        r"""
+        Monte Carlo approximation to the energy score (multivariate generalization of
+        CRPS) of count forecasts for each division-day.
+
+        $E[ || \hat{Y}_{tg} - Y_{tg} ||_p ] - \frac{1}{2} E[ || \hat{Y}_{tg} - \hat{Y}_{tg}' ||_p ]$
+
+        Returns a data frame with columns `(division, fd_offset, energy_score)`.
+        """
+
         return (
             # First, we will gather the values of count' we will use for (count-count')
             self.df.group_by("date", "fd_offset", "division", "lineage")
@@ -215,6 +248,14 @@ class CountsEvaluator:
         )
 
     def energy_score(self, p=2) -> float:
+        r"""
+        The energy score of count forecasts, summed over all divisions and days.
+
+        $$
+        \sum_{t, g} E[ || \hat{Y}_{tg} - Y_{tg} ||_p ]
+        - \frac{1}{2} E[ || \hat{Y}_{tg} - \hat{Y}_{tg}' ||_p ]
+        $$
+        """
         return (
             self._energy_score_per_division_day(p=p)
             .collect()
