@@ -316,6 +316,8 @@ def main(cfg: Optional[dict]):
             count=pl.col("count").fill_null(0),
         )
         .select("date", "fd_offset", "division", "lineage", "count")
+        # Sort to guarantee consistent output, since `.unique()` does not
+        .sort("fd_offset", "division", "lineage")
     )
 
     assert (
@@ -343,6 +345,8 @@ def main(cfg: Optional[dict]):
         .select("date", "fd_offset", "division", "lineage", "count")
         # Remove division-days where no samples were collected, for brevity
         .filter(pl.sum("count").over("date", "division") > 0)
+        # Sort to guarantee consistent output, since `.unique()` does not
+        .sort("fd_offset", "division", "lineage")
     )
 
     assert (
