@@ -232,7 +232,7 @@ class CountsFrame(pl.DataFrame):
 
         assert self.REQUIRED_COLUMNS.issubset(
             self.columns
-        ), f"Missing at least one required column ({", ".join(self.REQUIRED_COLUMNS)})."
+        ), f"Missing at least one required column ({', '.join(self.REQUIRED_COLUMNS)})"
 
         assert (
             self.null_count().sum_horizontal().item() == 0

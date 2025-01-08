@@ -41,7 +41,7 @@ class ForecastFrame(pl.DataFrame):
 
         assert self.REQUIRED_COLUMNS.issubset(
             self.columns
-        ), f"Missing at least one required column ({", ".join(self.REQUIRED_COLUMNS)})"
+        ), f"Missing at least one required column ({', '.join(self.REQUIRED_COLUMNS)})"
 
 
 class GeographicAggregator(ABC):
