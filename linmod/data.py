@@ -201,6 +201,44 @@ Dictionary form of https://www.hhs.gov/about/agencies/iea/regional-offices/index
 """
 
 
+class CountsFrame(pl.DataFrame):
+    """
+    A `polars.DataFrame` which enforces a format for observed counts of lineages.
+
+    See `REQUIRED_COLUMNS` for the expected columns.
+    """
+
+    REQUIRED_COLUMNS = {
+        "date",
+        "fd_offset",
+        "division",
+        "lineage",
+        "count",
+    }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.validate()
+
+    @classmethod
+    def read_parquet(cls, *args, **kwargs):
+        return cls(pl.read_parquet(*args, **kwargs))
+
+    def validate(self, *args, **kwargs):
+        # In case polars ever adds a validate method
+        if hasattr(super(), "validate"):
+            super().validate(*args, **kwargs)
+
+        assert self.REQUIRED_COLUMNS.issubset(
+            self.columns
+        ), f"Missing at least one required column ({", ".join(self.REQUIRED_COLUMNS)})."
+
+        assert (
+            self.null_count().sum_horizontal().item() == 0
+        ), "Null values detected in the dataset."
+
+
 def main(cfg: Optional[dict]):
     config = DEFAULT_CONFIG
 
@@ -303,7 +341,7 @@ def main(cfg: Optional[dict]):
         lineage=full_df["lineage"].unique(),
     )
 
-    eval_df = (
+    eval_df = CountsFrame(
         full_df.group_by("lineage", "date", "division")
         .agg(count=pl.len())
         .join(
@@ -318,16 +356,12 @@ def main(cfg: Optional[dict]):
         .select("date", "fd_offset", "division", "lineage", "count")
     )
 
-    assert (
-        eval_df.null_count().sum_horizontal().item() == 0
-    ), "Null values detected in evaluation dataset."
-
     eval_df.write_parquet(ValidPath(config["data"]["save_file"]["eval"]))
 
     print_message(" done.")
     print_message("Exporting modeling dataset...", end="")
 
-    model_df = (
+    model_df = CountsFrame(
         full_df.filter(pl.col("date_submitted") <= forecast_date)
         .group_by("lineage", "date", "division")
         .agg(count=pl.len())
@@ -344,10 +378,6 @@ def main(cfg: Optional[dict]):
         # Remove division-days where no samples were collected, for brevity
         .filter(pl.sum("count").over("date", "division") > 0)
     )
-
-    assert (
-        model_df.null_count().sum_horizontal().item() == 0
-    ), "Null values detected in modeling dataset."
 
     model_df.write_parquet(ValidPath(config["data"]["save_file"]["model"]))
 

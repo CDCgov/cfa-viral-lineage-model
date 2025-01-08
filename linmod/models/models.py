@@ -7,6 +7,7 @@ import numpyro.distributions as dist
 import polars as pl
 
 from ..utils import expand_grid, pl_softmax
+from .utils import ForecastFrame
 
 
 class MultinomialModel(ABC):
@@ -35,12 +36,12 @@ class MultinomialModel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def create_forecasts(self, mcmc, fd_offsets) -> pl.DataFrame:
+    def create_forecasts(self, mcmc, fd_offsets) -> ForecastFrame:
         """
-        Generate polars.DataFrame with: sample index, fd_offset, division, lineage, true proportion..
+        Generate a data frame of forecasted population-level proportions.
 
         mcmc:          The MCMC.
-        fd_offsets:    The (relative) days on which to generate forecasted true proportions.
+        fd_offsets:    The (relative) days on which to generate forecasted proportions.
         """
         raise NotImplementedError
 
@@ -205,7 +206,7 @@ class HierarchicalDivisionsModel(MultinomialModel):
             .drop("chain", "iteration")
         )
 
-        return (
+        return ForecastFrame(
             expand_grid(
                 sample_index=parameter_samples["sample_index"].unique(),
                 fd_offset=fd_offsets,
@@ -419,7 +420,7 @@ class IndependentDivisionsModel(MultinomialModel):
             .drop("chain", "iteration")
         )
 
-        return (
+        return ForecastFrame(
             expand_grid(
                 sample_index=parameter_samples["sample_index"].unique(),
                 fd_offset=fd_offsets,
@@ -526,7 +527,7 @@ class BaselineModel(MultinomialModel):
             .drop("chain", "iteration")
         )
 
-        return (
+        return ForecastFrame(
             expand_grid(
                 sample_index=parameter_samples["sample_index"].unique(),
                 fd_offset=fd_offsets,

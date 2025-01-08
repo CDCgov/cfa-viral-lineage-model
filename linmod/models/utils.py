@@ -9,6 +9,41 @@ from numpyro.infer.mcmc import MCMC
 from plotnine import aes, geom_line, ggplot, theme_bw
 
 
+class ForecastFrame(pl.DataFrame):
+    """
+    A `polars.DataFrame` which enforces a format for probabilistic forecast samples of
+    population-level lineage proportions.
+
+    See `REQUIRED_COLUMNS` for the expected columns.
+    """
+
+    REQUIRED_COLUMNS = {
+        "sample_index",
+        "fd_offset",
+        "division",
+        "lineage",
+        "phi",
+    }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.validate()
+
+    @classmethod
+    def read_parquet(cls, *args, **kwargs):
+        return cls(pl.read_parquet(*args, **kwargs))
+
+    def validate(self, *args, **kwargs):
+        # In case polars ever adds a validate method
+        if hasattr(super(), "validate"):
+            super().validate(*args, **kwargs)
+
+        assert self.REQUIRED_COLUMNS.issubset(
+            self.columns
+        ), f"Missing at least one required column ({", ".join(self.REQUIRED_COLUMNS)})"
+
+
 class GeographicAggregator(ABC):
     r"""
     Aggregate forecasts from state level to some larger grouping, like HHS divisions.
@@ -68,15 +103,21 @@ class InfectionWeightedAggregator(GeographicAggregator):
             ),
         )
 
-        assert set(geo_map.keys()).issubset(
+        assert set(
+            geo_map.keys()
+        ).issubset(
             set(forecast["division"].unique())
         ), 'All divisions in `geo_map.keys()` must be in `forecast["division"].'
 
-        assert set(geo_map.keys()).issubset(
+        assert set(
+            geo_map.keys()
+        ).issubset(
             set(pop_size["division"])
         ), 'All divisions in `geo_map.keys()` must be in `pop_size["division"].'
 
-        assert set(geo_map.keys()).issubset(
+        assert set(
+            geo_map.keys()
+        ).issubset(
             set(prop_infected["division"])
         ), 'All divisions in `geo_map.keys()` must be in `prop_infected["division"].'
 
