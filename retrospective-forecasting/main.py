@@ -13,6 +13,8 @@ from numpyro.infer import MCMC, NUTS
 import linmod.data
 import linmod.eval
 import linmod.models
+from linmod.data import CountsFrame
+from linmod.models import ForecastFrame
 from linmod.utils import ValidPath, print_message
 
 numpyro.set_host_device_count(4)
@@ -39,7 +41,7 @@ linmod.data.main(config)
 
 # Load the dataset used for retrospective forecasting
 
-model_data = pl.read_parquet(config["data"]["save_file"]["model"])
+model_data = CountsFrame.read_parquet(config["data"]["save_file"]["model"])
 
 # Fit each model
 
@@ -156,7 +158,7 @@ with open(plot_script_file, "w") as plot_script:
         del model, mcmc, forecast
 
     # Load the full evaluation dataset
-    eval_data = pl.read_parquet(config["data"]["save_file"]["eval"])
+    eval_data = CountsFrame.read_parquet(config["data"]["save_file"]["eval"])
 
     viz_data = eval_data.filter(
         pl.col("lineage").is_in(model_data["lineage"].unique()),
@@ -170,7 +172,7 @@ with open(plot_script_file, "w") as plot_script:
 
     for forecast_path in forecast_dir.glob("forecasts_*.parquet"):
         model_name = forecast_path.stem.split("_")[1]
-        forecast = pl.scan_parquet(forecast_path)
+        forecast = ForecastFrame.read_parquet(forecast_path)
 
         for evaluator_config in config["evaluation"]["metrics"]:
             if isinstance(evaluator_config, dict):
@@ -190,7 +192,7 @@ with open(plot_script_file, "w") as plot_script:
 
             evaluator = getattr(linmod.eval, evaluator_name)(
                 samples=forecast,
-                data=eval_data.lazy(),
+                data=eval_data,
                 **evaluator_args,
             )
 
