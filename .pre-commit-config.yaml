@@ -31,13 +31,6 @@ repos:
   hooks:
     - id: ruff
 #####
-# R
--   repo: https://github.com/lorenzwalthert/precommit
-    rev: v0.4.2
-    hooks:
-    -   id: style-files
-    -   id: lintr
-#####
 # Java
 - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
   rev: v2.11.0
