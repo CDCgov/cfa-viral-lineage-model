@@ -230,13 +230,24 @@ class CountsFrame(pl.DataFrame):
         if hasattr(super(), "validate"):
             super().validate(*args, **kwargs)
 
-        assert self.REQUIRED_COLUMNS.issubset(
-            self.columns
-        ), f"Missing at least one required column ({', '.join(self.REQUIRED_COLUMNS)})"
+        assert self.REQUIRED_COLUMNS.issubset(self.columns), (
+            f"Missing at least one required column ({', '.join(self.REQUIRED_COLUMNS)})"
+        )
 
-        assert (
-            self.null_count().sum_horizontal().item() == 0
-        ), "Null values detected in the dataset."
+        assert self.null_count().sum_horizontal().item() == 0, (
+            "Null values detected in the dataset."
+        )
+
+        assert self["count"].dtype in {
+            pl.Int8,
+            pl.Int16,
+            pl.Int32,
+            pl.Int64,
+            pl.UInt8,
+            pl.UInt16,
+            pl.UInt32,
+            pl.UInt64,
+        }, "Count column must be an integer type."
 
 
 def main(cfg: Optional[dict]):
@@ -257,9 +268,10 @@ def main(cfg: Optional[dict]):
     if config["data"]["redownload"] or not cache_path.exists():
         print_message("Downloading...", end="")
 
-        with urlopen(config["data"]["source"]) as response, cache_path.open(
-            "wb"
-        ) as out_file:
+        with (
+            urlopen(config["data"]["source"]) as response,
+            cache_path.open("wb") as out_file,
+        ):
             if parsed_url.path.endswith(".gz"):
                 with lzma.open(response) as in_file:
                     out_file.write(in_file.read())
@@ -288,10 +300,10 @@ def main(cfg: Optional[dict]):
     )
 
     horizon_lower_date = forecast_date.dt.offset_by(
-        f'{config["data"]["horizon"]["lower"]}d'
+        f"{config['data']['horizon']['lower']}d"
     )
     horizon_upper_date = forecast_date.dt.offset_by(
-        f'{config["data"]["horizon"]["upper"]}d'
+        f"{config['data']['horizon']['upper']}d"
     )
 
     model_all_lineages = len(config["data"]["lineages"]) == 0

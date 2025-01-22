@@ -55,9 +55,16 @@ def _generate_fake_samples_and_data(
         suffix="_sampled",
     )
 
-    samples = samples.with_columns(
-        phi=rng.normal(samples["phi_mean"], np.sqrt(sample_variance))
-    ).drop("phi_mean")
+    samples = (
+        samples.with_columns(
+            phi=rng.normal(samples["phi_mean"], np.sqrt(sample_variance))
+        )
+        .drop("phi_mean")
+        .with_columns(
+            phi=pl.col("phi")
+            / pl.sum("phi").over("sample_index", "fd_offset", "division")
+        )
+    )
 
     return samples, data
 
@@ -100,6 +107,10 @@ def test_countsframe():
         with pytest.raises(AssertionError):
             CountsFrame(data.drop(col)).validate()
 
+    # Ensure floating point counts fail validation
+    with pytest.raises(AssertionError):
+        CountsFrame(data.with_columns(count=pl.col("count") * 1.5)).validate()
+
 
 def test_forecastframe():
     REQUIRED_COLUMNS = {
@@ -128,3 +139,7 @@ def test_forecastframe():
     for col in REQUIRED_COLUMNS:
         with pytest.raises(AssertionError):
             CountsFrame(samples.drop(col)).validate()
+
+    # Ensure improper proportions fail validation
+    with pytest.raises(AssertionError):
+        ForecastFrame(samples.with_columns(phi=pl.col("phi") * 1.5)).validate()
