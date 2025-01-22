@@ -49,7 +49,7 @@ class ForecastFrame(pl.DataFrame):
 
         assert (
             (proportion_sums["phi"] - 1).abs() < 1e-3
-        ).all(), f"Lineage proportions do not sum to 1."
+        ).all(), "Lineage proportions do not sum to 1."
 
 
 class GeographicAggregator(ABC):
