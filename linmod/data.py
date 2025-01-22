@@ -230,13 +230,13 @@ class CountsFrame(pl.DataFrame):
         if hasattr(super(), "validate"):
             super().validate(*args, **kwargs)
 
-        assert self.REQUIRED_COLUMNS.issubset(self.columns), (
-            f"Missing at least one required column ({', '.join(self.REQUIRED_COLUMNS)})"
-        )
+        assert self.REQUIRED_COLUMNS.issubset(
+            self.columns
+        ), f"Missing at least one required column ({', '.join(self.REQUIRED_COLUMNS)})"
 
-        assert self.null_count().sum_horizontal().item() == 0, (
-            "Null values detected in the dataset."
-        )
+        assert (
+            self.null_count().sum_horizontal().item() == 0
+        ), "Null values detected in the dataset."
 
         assert self["count"].dtype in {
             pl.Int8,

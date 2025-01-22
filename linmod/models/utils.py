@@ -39,17 +39,17 @@ class ForecastFrame(pl.DataFrame):
         if hasattr(super(), "validate"):
             super().validate(*args, **kwargs)
 
-        assert self.REQUIRED_COLUMNS.issubset(self.columns), (
-            f"Missing at least one required column ({', '.join(self.REQUIRED_COLUMNS)})"
-        )
+        assert self.REQUIRED_COLUMNS.issubset(
+            self.columns
+        ), f"Missing at least one required column ({', '.join(self.REQUIRED_COLUMNS)})"
 
         proportion_sums = self.group_by(
             "sample_index", "fd_offset", "division"
         ).agg(pl.sum("phi"))
 
-        assert ((proportion_sums["phi"] - 1).abs() < 1e-3).all(), (
-            f"Lineage proportions do not sum to 1."
-        )
+        assert (
+            (proportion_sums["phi"] - 1).abs() < 1e-3
+        ).all(), f"Lineage proportions do not sum to 1."
 
 
 class GeographicAggregator(ABC):
@@ -113,17 +113,15 @@ class InfectionWeightedAggregator(GeographicAggregator):
 
         assert set(geo_map.keys()).issubset(
             set(forecast["division"].unique())
-        ), (
-            'All divisions in `geo_map.keys()` must be in `forecast["division"].'
-        )
+        ), 'All divisions in `geo_map.keys()` must be in `forecast["division"].'
 
-        assert set(geo_map.keys()).issubset(set(pop_size["division"])), (
-            'All divisions in `geo_map.keys()` must be in `pop_size["division"].'
-        )
+        assert set(geo_map.keys()).issubset(
+            set(pop_size["division"])
+        ), 'All divisions in `geo_map.keys()` must be in `pop_size["division"].'
 
-        assert set(geo_map.keys()).issubset(set(prop_infected["division"])), (
-            'All divisions in `geo_map.keys()` must be in `prop_infected["division"].'
-        )
+        assert set(geo_map.keys()).issubset(
+            set(prop_infected["division"])
+        ), 'All divisions in `geo_map.keys()` must be in `prop_infected["division"].'
 
         weights = (
             pop_size.join(
