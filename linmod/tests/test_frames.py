@@ -21,7 +21,7 @@ def _generate_fake_samples_and_data(
 
     - $Y_{tgl} \sim Uniform{0, ..., 99}$
     - Denote true proportion as $\pi_{tgl} = \frac{Y_{tgl}}{Y_{tg \cdot}}$
-    - $phi_{tgl} \sim N(\pi_{tgl}, \sigma^2)$
+    - $phi_{tgl}' \sim N(\pi_{tgl}, \sigma^2); \phi_{tgl} = \frac{\phi_{tgl}'}{\Sum_{t',g'} \phi_{t'g'l}'}$
     """
 
     rng = default_rng(rng)
