@@ -58,7 +58,7 @@ def _generate_fake_samples_and_data(
         phi=rng.normal(samples["phi_mean"], np.sqrt(sample_variance))
     ).drop("phi_mean")
 
-    return samples.lazy(), data.lazy()
+    return samples, data
 
 
 def test_proportions_mean_L1_norm(

@@ -44,7 +44,18 @@ class ProportionsEvaluator:
                 how="left",
                 suffix="_sampled",
             )
-        ).lazy()
+        )
+
+        assert (
+            self.df.shape[0]
+            == data.shape[0] * samples["sample_index"].n_unique()
+        )
+        assert (
+            self.df["fd_offset"].unique().sort()
+            == data["fd_offset"].unique().sort()
+        ).all()
+
+        self.df = self.df.lazy()
 
     def _mean_norm_per_division_day(self, p=1) -> pl.LazyFrame:
         r"""
@@ -174,7 +185,18 @@ class CountsEvaluator:
             )
             .explode("lineage", "phi_sampled", "count", "count_sampled")
             .drop("phi_sampled")
-        ).lazy()
+        )
+
+        assert (
+            self.df.shape[0]
+            == data.shape[0] * samples["sample_index"].n_unique()
+        )
+        assert (
+            self.df["fd_offset"].unique().sort()
+            == data["fd_offset"].unique().sort()
+        ).all()
+
+        self.df = self.df.lazy()
 
     def _mean_norm_per_division_day(self, p=1) -> pl.LazyFrame:
         r"""
