@@ -25,6 +25,11 @@ def multinomial_count_sampler(
 
 class ProportionsEvaluator:
     def __init__(self, samples: ForecastFrame, data: CountsFrame):
+        assert (
+            samples["lineage"].unique().sort()
+            == data["lineage"].unique().sort()
+        ).all()
+
         # Join the forecast samples and raw data dataframes.
         # Also compute the true proportions from the raw data.
         self.df = (
@@ -46,10 +51,6 @@ class ProportionsEvaluator:
             )
         )
 
-        assert (
-            self.df.shape[0]
-            == data.shape[0] * samples["sample_index"].n_unique()
-        )
         assert (
             self.df["fd_offset"].unique().sort()
             == data["fd_offset"].unique().sort()
@@ -163,6 +164,11 @@ class CountsEvaluator:
         )
         count_sampler = type(self)._count_samplers[count_sampler]
 
+        assert (
+            samples["lineage"].unique().sort()
+            == data["lineage"].unique().sort()
+        ).all()
+
         rng = np.random.default_rng(seed)
 
         self.df = (
@@ -187,10 +193,6 @@ class CountsEvaluator:
             .drop("phi_sampled")
         )
 
-        assert (
-            self.df.shape[0]
-            == data.shape[0] * samples["sample_index"].n_unique()
-        )
         assert (
             self.df["fd_offset"].unique().sort()
             == data["fd_offset"].unique().sort()
