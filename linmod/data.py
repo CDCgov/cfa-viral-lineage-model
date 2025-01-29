@@ -225,29 +225,18 @@ class CountsFrame(pl.DataFrame):
     def read_parquet(cls, *args, **kwargs):
         return cls(pl.read_parquet(*args, **kwargs))
 
-    def validate(self, *args, **kwargs):
-        # In case polars ever adds a validate method
-        if hasattr(super(), "validate"):
-            super().validate(*args, **kwargs)
+    def validate(self):
+        assert self.REQUIRED_COLUMNS.issubset(self.columns), (
+            f"Missing required columns: ({', '.join(self.REQUIRED_COLUMNS - set(self.columns))})"
+        )
 
-        assert self.REQUIRED_COLUMNS.issubset(
-            self.columns
-        ), f"Missing at least one required column ({', '.join(self.REQUIRED_COLUMNS)})"
+        assert self.null_count().sum_horizontal().item() == 0, (
+            "Null values detected in the dataset."
+        )
 
-        assert (
-            self.null_count().sum_horizontal().item() == 0
-        ), "Null values detected in the dataset."
-
-        assert self["count"].dtype in {
-            pl.Int8,
-            pl.Int16,
-            pl.Int32,
-            pl.Int64,
-            pl.UInt8,
-            pl.UInt16,
-            pl.UInt32,
-            pl.UInt64,
-        }, "Count column must be an integer type."
+        assert self["count"].dtype.is_integer(), (
+            "Count column must be an integer type."
+        )
 
 
 def main(cfg: Optional[dict]):

@@ -34,22 +34,18 @@ class ForecastFrame(pl.DataFrame):
     def read_parquet(cls, *args, **kwargs):
         return cls(pl.read_parquet(*args, **kwargs))
 
-    def validate(self, *args, **kwargs):
-        # In case polars ever adds a validate method
-        if hasattr(super(), "validate"):
-            super().validate(*args, **kwargs)
-
-        assert self.REQUIRED_COLUMNS.issubset(
-            self.columns
-        ), f"Missing at least one required column ({', '.join(self.REQUIRED_COLUMNS)})"
+    def validate(self):
+        assert self.REQUIRED_COLUMNS.issubset(self.columns), (
+            f"Missing required columns: ({', '.join(self.REQUIRED_COLUMNS - set(self.columns))})"
+        )
 
         proportion_sums = self.group_by(
             "sample_index", "fd_offset", "division"
         ).agg(pl.sum("phi"))
 
-        assert (
-            (proportion_sums["phi"] - 1).abs() < 1e-3
-        ).all(), "Lineage proportions do not sum to 1."
+        assert ((proportion_sums["phi"] - 1).abs() < 1e-3).all(), (
+            "Lineage proportions do not sum to 1."
+        )
 
 
 class GeographicAggregator(ABC):
@@ -113,15 +109,17 @@ class InfectionWeightedAggregator(GeographicAggregator):
 
         assert set(geo_map.keys()).issubset(
             set(forecast["division"].unique())
-        ), 'All divisions in `geo_map.keys()` must be in `forecast["division"].'
+        ), (
+            'All divisions in `geo_map.keys()` must be in `forecast["division"].'
+        )
 
-        assert set(geo_map.keys()).issubset(
-            set(pop_size["division"])
-        ), 'All divisions in `geo_map.keys()` must be in `pop_size["division"].'
+        assert set(geo_map.keys()).issubset(set(pop_size["division"])), (
+            'All divisions in `geo_map.keys()` must be in `pop_size["division"].'
+        )
 
-        assert set(geo_map.keys()).issubset(
-            set(prop_infected["division"])
-        ), 'All divisions in `geo_map.keys()` must be in `prop_infected["division"].'
+        assert set(geo_map.keys()).issubset(set(prop_infected["division"])), (
+            'All divisions in `geo_map.keys()` must be in `prop_infected["division"].'
+        )
 
         weights = (
             pop_size.join(
