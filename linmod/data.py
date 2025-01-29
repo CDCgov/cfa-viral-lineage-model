@@ -226,17 +226,17 @@ class CountsFrame(pl.DataFrame):
         return cls(pl.read_parquet(*args, **kwargs))
 
     def validate(self):
-        assert self.REQUIRED_COLUMNS.issubset(self.columns), (
-            f"Missing required columns: ({', '.join(self.REQUIRED_COLUMNS - set(self.columns))})"
-        )
+        assert self.REQUIRED_COLUMNS.issubset(
+            self.columns
+        ), f"Missing required columns: ({', '.join(self.REQUIRED_COLUMNS - set(self.columns))})"
 
-        assert self.null_count().sum_horizontal().item() == 0, (
-            "Null values detected in the dataset."
-        )
+        assert (
+            self.null_count().sum_horizontal().item() == 0
+        ), "Null values detected in the dataset."
 
-        assert self["count"].dtype.is_integer(), (
-            "Count column must be an integer type."
-        )
+        assert self[
+            "count"
+        ].dtype.is_integer(), "Count column must be an integer type."
 
 
 def main(cfg: Optional[dict]):
