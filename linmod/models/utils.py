@@ -9,6 +9,45 @@ from numpyro.infer.mcmc import MCMC
 from plotnine import aes, geom_line, ggplot, theme_bw
 
 
+class ForecastFrame(pl.DataFrame):
+    """
+    A `polars.DataFrame` which enforces a format for probabilistic forecast samples of
+    population-level lineage proportions.
+
+    See `REQUIRED_COLUMNS` for the expected columns.
+    """
+
+    REQUIRED_COLUMNS = {
+        "sample_index",
+        "fd_offset",
+        "division",
+        "lineage",
+        "phi",
+    }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.validate()
+
+    @classmethod
+    def read_parquet(cls, *args, **kwargs):
+        return cls(pl.read_parquet(*args, **kwargs))
+
+    def validate(self):
+        assert self.REQUIRED_COLUMNS.issubset(
+            self.columns
+        ), f"Missing required columns: ({', '.join(self.REQUIRED_COLUMNS - set(self.columns))})"
+
+        proportion_sums = self.group_by(
+            "sample_index", "fd_offset", "division"
+        ).agg(pl.sum("phi"))
+
+        assert (
+            (proportion_sums["phi"] - 1).abs() < 1e-3
+        ).all(), "Lineage proportions do not sum to 1."
+
+
 class GeographicAggregator(ABC):
     r"""
     Aggregate forecasts from state level to some larger grouping, like HHS divisions.

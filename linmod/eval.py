@@ -2,6 +2,8 @@ import numpy as np
 import polars as pl
 from numpy.typing import ArrayLike
 
+from linmod.data import CountsFrame
+from linmod.models import ForecastFrame
 from linmod.utils import pl_list_cycle, pl_norm
 
 
@@ -22,12 +24,7 @@ def multinomial_count_sampler(
 
 
 class ProportionsEvaluator:
-    def __init__(self, samples: pl.LazyFrame, data: pl.LazyFrame):
-        """
-        `samples` should have the standard model output format.
-        `data` should have the standard model input format.
-        """
-
+    def __init__(self, samples: ForecastFrame, data: CountsFrame):
         # Join the forecast samples and raw data dataframes.
         # Also compute the true proportions from the raw data.
         self.df = (
@@ -47,7 +44,7 @@ class ProportionsEvaluator:
                 how="left",
                 suffix="_sampled",
             )
-        )
+        ).lazy()
 
     def _mean_norm_per_division_day(self, p=1) -> pl.LazyFrame:
         r"""
@@ -136,8 +133,8 @@ class CountsEvaluator:
 
     def __init__(
         self,
-        samples: pl.LazyFrame,
-        data: pl.LazyFrame,
+        samples: ForecastFrame,
+        data: CountsFrame,
         count_sampler: str = "multinomial",
         seed: int = None,
     ):
@@ -145,8 +142,6 @@ class CountsEvaluator:
         Evaluates count forecasts $\hat{Y}$ sampled from a specified observation model given model
         proportion forecasts.
 
-        `samples` should have the standard model output format.
-        `data` should have the standard model input format.
         `count_sampler` should be one of the keys in `CountsEvaluator._count_samplers`.
         `seed` is an optional random seed for the count sampler.
         """
@@ -179,7 +174,7 @@ class CountsEvaluator:
             )
             .explode("lineage", "phi_sampled", "count", "count_sampled")
             .drop("phi_sampled")
-        )
+        ).lazy()
 
     def _mean_norm_per_division_day(self, p=1) -> pl.LazyFrame:
         r"""
