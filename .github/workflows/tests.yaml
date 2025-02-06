@@ -32,6 +32,6 @@ jobs:
         poetry run pytest -v
 
     - name: Run end-to-end test
-      working-directory: retrospective-forecasting/test
+      working-directory: retrospective-forecasting/
       run: |
-        poetry run sh end-to-end-test.sh
+        poetry run bash test/run.sh
