@@ -261,7 +261,7 @@ def main(cfg: Optional[dict]):
             urlopen(config["data"]["source"]) as response,
             cache_path.open("wb") as out_file,
         ):
-            if parsed_url.path.endswith(".gz"):
+            if parsed_url.path.endswith(".xz"):
                 with lzma.open(response) as in_file:
                     out_file.write(in_file.read())
 
