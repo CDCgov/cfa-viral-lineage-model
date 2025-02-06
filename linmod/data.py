@@ -421,6 +421,6 @@ if __name__ == "__main__":
     cfg = None
     if yaml_path is not None:
         with open(yaml_path) as f:
-            cfg = yaml.safe_load(f)["data"]
+            cfg = yaml.safe_load(f)
 
     main(cfg)
