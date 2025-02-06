@@ -13,15 +13,18 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Setup python
+    - name: Set up poetry
+      run: |
+        pip install poetry
+
+    - name: Set up python
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
         cache: 'poetry'
 
-    - name: Install global dependencies
+    - name: Install package dependencies
       run: |
-        pip install poetry
         poetry install
 
     - name: Run pytest
