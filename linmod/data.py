@@ -278,12 +278,16 @@ def recode_clades_using_usher(
             .cast(pl.Int64),
         )
         .with_columns(
-            pl.when(pl.col("Nextstrain_clade") == "recombinant")
-            .then(pl.col("Nextstrain_clade"))
-            .otherwise(pl.col("lineage"))
-            .alias("lineage")
+            pl.when(pl.col(usher_lineage_from) == "recombinant")
+            .then(pl.col(usher_lineage_from))
+            .otherwise(pl.col(lineage_to))
+            .alias(lineage_to),
         )
-        .filter(pl.col(lineage_to).is_not_null())
+        .filter(
+            pl.col(lineage_to).is_not_null(),
+            pl.col("genbank_revision")
+            == pl.col("genbank_revision").max().over("genbank_accession"),
+        )
         .select(["genbank_accession", "lineage"])
         .collect()
     )

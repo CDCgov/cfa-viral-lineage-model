@@ -16,6 +16,7 @@ def get_plot_data(
     last_date,
     observed_only,
     divisions,
+    lineages,
     ci_alpha,
 ):
     r"""
@@ -30,6 +31,8 @@ def get_plot_data(
     if observed_only:
         last_samp_date = last_date
 
+    mal = True if (lineages is None or len(lineages) == 0) else False
+
     df = linmod.data.process_nextstrain(
         ns_path,
         rename={"clade_nextstrain": "lineage"},
@@ -38,8 +41,8 @@ def get_plot_data(
         included_divisions=linmod.data.DEFAULT_CONFIG["data"][
             "included_divisions"
         ],
-        model_all_lineages=True,
-        included_lineages=[],
+        model_all_lineages=mal,
+        included_lineages=lineages,
     ).filter(
         # If specified, keep only samples seen by last date
         pl.col("date_submitted")
@@ -101,6 +104,7 @@ def make_plot(
     last_date,
     observed_only,
     divisions,
+    lineages,
     ci_alpha,
 ):
     r"""
@@ -114,6 +118,7 @@ def make_plot(
         last_date,
         observed_only,
         divisions,
+        lineages,
         ci_alpha,
     )
 
@@ -209,12 +214,21 @@ if __name__ == "__main__":
         default="",
         help="Path to UShER data. If provided, clade calls are taken from this, not Nextstrain (main) data.",
     )
+    parser.add_argument(
+        "--lineages",
+        default=None,
+        help="Plot will only include data for these lineages. Default corresponds to all lineages.",
+    )
 
     args = parser.parse_args()
 
     divisions = None
     if args.division is not None:
         divisions = args.division.strip().split(",")
+
+    lineages = None
+    if args.lineages is not None:
+        lineages = args.lineages.strip().split(",")
 
     plt = make_plot(
         args.data_filename,
@@ -225,6 +239,7 @@ if __name__ == "__main__":
         last_date=datetime.datetime.strptime(args.last_date, "%Y-%m-%d"),
         observed_only=args.observed_only,
         divisions=divisions,
+        lineages=lineages,
         ci_alpha=float(args.uncertainty_alpha),
     )
 
