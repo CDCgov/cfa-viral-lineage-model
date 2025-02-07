@@ -5,9 +5,19 @@ import numpyro.distributions as dist
 import polars as pl
 from plotnine import aes, geom_line, geom_ribbon, ggplot, theme_bw
 
+import linmod.data
+
 
 def get_plot_data(
-    dfp, first_date, last_date, observed_only, divisions, ci_alpha
+    ns_path,
+    usher_path,
+    clades_as_of,
+    first_date,
+    last_date,
+    observed_only,
+    divisions,
+    lineages,
+    ci_alpha,
 ):
     r"""
     Compresses history in range to US-aggregate by week.
@@ -21,26 +31,35 @@ def get_plot_data(
     if observed_only:
         last_samp_date = last_date
 
-    df = (
-        pl.scan_parquet(dfp, separator="\t")
-        .rename({"clade_nextstrain": "lineage"})
-        .cast({"date": pl.Date, "date_submitted": pl.Date}, strict=False)
-        .filter(
-            pl.col("lineage").is_not_null(),
-            # Drop samples with missing collection or reporting dates
-            pl.col("date").is_not_null(),
-            # Drop samples claiming to be reported before being collected
-            pl.col("date") <= pl.col("date_submitted"),
-            # Keep only samples in range of specified days
-            pl.col("date") >= first_date,
-            pl.col("date") <= last_date,
-            # If specified, keep only samples seen by last date
-            pl.col("date_submitted") <= last_samp_date,
-            country="USA",
-            host="Homo sapiens",
-        )
-        .collect()
+    mal = True if (lineages is None or len(lineages) == 0) else False
+
+    df = linmod.data.process_nextstrain(
+        ns_path,
+        rename={"clade_nextstrain": "lineage"},
+        horizon_lower_date=first_date,
+        horizon_upper_date=last_date,
+        included_divisions=linmod.data.DEFAULT_CONFIG["data"][
+            "included_divisions"
+        ],
+        model_all_lineages=mal,
+        included_lineages=lineages,
+    ).filter(
+        # If specified, keep only samples seen by last date
+        pl.col("date_submitted")
+        <= last_samp_date,
     )
+
+    if usher_path:
+        df = linmod.data.recode_clades_using_usher(
+            df,
+            usher_path,
+            usher_lineage_from=linmod.data.DEFAULT_CONFIG["data"][
+                "usher_lineage_column_name"
+            ],
+        )
+
+    if clades_as_of is not None:
+        df = linmod.data.combine_clades(df, clades_as_of)
 
     if divisions is not None:
         assert all(div in df["division"] for div in divisions)
@@ -77,19 +96,30 @@ def get_plot_data(
 
 
 def make_plot(
-    dfp,
+    ns_path,
+    usher_path,
+    clades_as_of,
     ignore_under,
     first_date,
     last_date,
     observed_only,
     divisions,
+    lineages,
     ci_alpha,
 ):
     r"""
     Plots all NextStrain clades in the available data, weekly, for the full duration.
     """
     df = get_plot_data(
-        dfp, first_date, last_date, observed_only, divisions, ci_alpha
+        ns_path,
+        usher_path,
+        clades_as_of,
+        first_date,
+        last_date,
+        observed_only,
+        divisions,
+        lineages,
+        ci_alpha,
     )
 
     trivial = (
@@ -159,7 +189,6 @@ if __name__ == "__main__":
         help="Plot will only include lineages which exceed this frequency in at least one week",
     )
     parser.add_argument(
-        "-u",
         "--uncertainty_alpha",
         default=None,
         help="If specified, plot will include weekly uncertainty in proportion via Wald intervals at this alpha.",
@@ -175,6 +204,21 @@ if __name__ == "__main__":
     parser.add_argument(
         "-t", "--height", default=4, help="Plot height, in inches."
     )
+    parser.add_argument(
+        "--clades_as_of",
+        default=None,
+        help="If specified, we use cladecombiner.AsOfAggregator to aggregate to clades from this date.",
+    )
+    parser.add_argument(
+        "--usher_path",
+        default="",
+        help="Path to UShER data. If provided, clade calls are taken from this, not Nextstrain (main) data.",
+    )
+    parser.add_argument(
+        "--lineages",
+        default=None,
+        help="Plot will only include data for these lineages. Default corresponds to all lineages.",
+    )
 
     args = parser.parse_args()
 
@@ -182,13 +226,26 @@ if __name__ == "__main__":
     if args.division is not None:
         divisions = args.division.strip().split(",")
 
+    lineages = None
+    if args.lineages is not None:
+        lineages = args.lineages.strip().split(",")
+
+    cao = (
+        None
+        if args.clades_as_of is None
+        else datetime.datetime.strptime(args.clades_as_of, "%Y-%m-%d").date()
+    )
+
     plt = make_plot(
         args.data_filename,
+        args.usher_path,
+        cao,
         ignore_under=float(args.frequency_cutoff),
         first_date=datetime.datetime.strptime(args.first_date, "%Y-%m-%d"),
         last_date=datetime.datetime.strptime(args.last_date, "%Y-%m-%d"),
         observed_only=args.observed_only,
         divisions=divisions,
+        lineages=lineages,
         ci_alpha=float(args.uncertainty_alpha),
     )
 
