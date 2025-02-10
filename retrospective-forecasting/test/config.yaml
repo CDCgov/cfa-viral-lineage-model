@@ -1,7 +1,6 @@
 data:
   # Raw data location
-  #source: file://{{WORKING_DIRECTORY}}/test/metadata.tsv.xz
-  source: file:///Users/thanasibakis/git/cfa-viral-lineage-model/retrospective-forecasting/test/metadata.tsv.xz
+  source: file://{{WORKING_DIRECTORY}}/test/metadata.tsv.xz
   cache_dir: test/cache
   redownload: true
 
