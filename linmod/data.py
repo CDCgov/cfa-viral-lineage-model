@@ -261,7 +261,7 @@ def main(cfg: Optional[dict]):
             urlopen(config["data"]["source"]) as response,
             cache_path.open("wb") as out_file,
         ):
-            if parsed_url.path.endswith(".gz"):
+            if parsed_url.path.endswith(".xz"):
                 with lzma.open(response) as in_file:
                     out_file.write(in_file.read())
 
@@ -421,6 +421,6 @@ if __name__ == "__main__":
     cfg = None
     if yaml_path is not None:
         with open(yaml_path) as f:
-            cfg = yaml.safe_load(f)["data"]
+            cfg = yaml.safe_load(f)
 
     main(cfg)
