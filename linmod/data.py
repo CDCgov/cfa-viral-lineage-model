@@ -392,7 +392,7 @@ def main(cfg: Optional[dict]):
         print_message("Downloading Nextstrain data...", end="")
 
         with (
-            urlopen(config["data"]["source"]) as response,
+            urlopen(config["data"]["nextstrain_source"]) as response,
             nextstrain_cache_path.open("wb") as out_file,
         ):
             if parsed_url.path.endswith(".xz"):
