@@ -1,6 +1,6 @@
 data:
   # Raw data location
-  source: file://{{WORKING_DIRECTORY}}/test/metadata.tsv.xz
+  nextstrain_source: file://{{WORKING_DIRECTORY}}/test/metadata.tsv.xz
   cache_dir: test/cache
   redownload: true
 
