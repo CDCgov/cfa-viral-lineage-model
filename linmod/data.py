@@ -248,6 +248,8 @@ class CountsFrame(pl.DataFrame):
         assert self[
             "count"
         ].dtype.is_integer(), "Count column must be an integer type."
+
+
 def process_nextstrain(
     fp: str,
     rename: dict,
