@@ -320,8 +320,10 @@ def recode_clades_using_usher(
         .rename({"genbank_accession": "genbank_with_revision"})
         .with_columns(
             pl.col(usher_lineage_from)
-            .str.extract(r"(\d\d[A-Z])")
-            .alias(lineage_to),
+            # UShER names follow the Nextstrain_clade style not the clade_nextstrain style
+            .str.extract(r"(\d\d[A-Z])").alias(lineage_to),
+            # UShER includes the revision as part of the accession
+            # we just want to match accessions
             genbank_accession=pl.col("genbank_with_revision").str.replace(
                 r"\.(\d+)", ""
             ),
@@ -335,6 +337,8 @@ def recode_clades_using_usher(
             .otherwise(pl.col(lineage_to))
             .alias(lineage_to),
         )
+        # There are occasionally multiple revisions for the same accession,
+        # take the most recent
         .filter(
             pl.col(lineage_to).is_not_null(),
             pl.col("genbank_revision")
