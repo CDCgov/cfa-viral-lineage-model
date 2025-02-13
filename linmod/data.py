@@ -259,6 +259,10 @@ def process_nextstrain(
     included_lineages: Collection[str],
     model_all_lineages: bool,
 ) -> pl.DataFrame:
+    """
+    Reads in Nextstrain data from (uncompressed) Nextstrain metadata file,
+    performs basic filtering and date wrangling.
+    """
     df = (
         pl.scan_csv(fp, separator="\t")
         .rename(rename)
@@ -299,7 +303,17 @@ def recode_clades_using_usher(
     usher_path,
     usher_lineage_from: dict,
     lineage_to="lineage",
-):
+) -> pl.DataFrame:
+    """
+    Replaces the "lineage" column in the input ns (Nextstrain) dataframe using
+    clades called by UShER, as read from an UShER metadata file.
+
+    Performs matching based on Genbank accessions. Unmatched entries are dropped.
+
+    Useful for better-approximating retrospectively running an analysis
+    as UShER metadata, including Nextstrain clade calls, are archived as far
+    back as mid 2021.
+    """
     usher = (
         pl.scan_csv(usher_path, separator="\t")
         .filter(pl.col("genbank_accession").is_not_null())
@@ -336,6 +350,15 @@ def recode_clades_using_usher(
 
 
 def combine_clades(df: pl.DataFrame, as_of: date, lineage_col="lineage"):
+    """
+    Uses CDCGov/cladecombiner to recode the stated "lineage" such that
+    any Nextstrain clade which was not recognized (had not yet been named)
+    by the as-of date is put in its ancestor which was recognized.
+
+    Useful for when taxonomy shifts (a new clade is named) within a few
+    months of the desired `forecast_date` for better-approximating
+    retrospectively running the pipeline.
+    """
     ns = cladecombiner.nextstrain_sc2_nomenclature
     observed_clades = df[lineage_col].unique().to_list()
     observed_clades.remove("recombinant")
