@@ -418,14 +418,11 @@ def main(cfg: Optional[dict]):
         print_message("Using cached Nextstrain data.")
 
     if config["data"]["use_usher"]:
-        usher_date = (
-            datetime(
-                config["data"]["forecast_date"]["year"],
-                config["data"]["forecast_date"]["month"],
-                config["data"]["forecast_date"]["day"],
-            )
-            + timedelta(days=config["data"]["usher_lag"])
-        )
+        usher_date = datetime(
+            config["data"]["forecast_date"]["year"],
+            config["data"]["forecast_date"]["month"],
+            config["data"]["forecast_date"]["day"],
+        ) + timedelta(days=config["data"]["usher_lag"])
         ymd = [
             str(usher_date.year),
             f"{usher_date.month:02d}",
