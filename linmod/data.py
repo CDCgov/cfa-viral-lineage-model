@@ -428,9 +428,7 @@ def main(cfg: Optional[dict]):
         )
         ymd = [
             str(usher_date.year),
-            str(usher_date.month)
-            if usher_date.month >= 10
-            else "0" + str(usher_date.month),
+            f"{usher_date.month:02d}",
             str(usher_date.day)
             if usher_date.day >= 10
             else "0" + str(usher_date.day),
