@@ -429,9 +429,7 @@ def main(cfg: Optional[dict]):
         ymd = [
             str(usher_date.year),
             f"{usher_date.month:02d}",
-            str(usher_date.day)
-            if usher_date.day >= 10
-            else "0" + str(usher_date.day),
+            f"{usher_date.day:02d}",
         ]
 
         usher_url = (
