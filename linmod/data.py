@@ -45,7 +45,7 @@ DEFAULT_CONFIG = {
         # We get UShER data this far past the forecast_date as a compromise between recency of calls and maximizing available evaluation data
         "usher_lag": timedelta(days=168),
         # Should we use cladecombiner.AsOfAggregator to ensure lineages are only those known as of the forecast_date?
-        "recode_lineages_retrospectively": True,
+        "use_cladecombiner_as_of": True,
         # Where (directory) should the unprocessed (but decompressed) data be stored?
         "cache_dir": ".cache/",
         # Where (files) should the processed datasets for modeling and evaluation
@@ -502,7 +502,7 @@ def main(cfg: Optional[dict]):
             usher_lineage_from=config["data"]["usher_lineage_column_name"],
         )
 
-    if config["data"]["recode_lineages_retrospectively"]:
+    if config["data"]["use_cladecombiner_as_of"]:
         full_df = combine_clades(
             full_df,
             as_of=date(

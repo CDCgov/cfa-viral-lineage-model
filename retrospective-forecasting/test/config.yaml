@@ -31,7 +31,7 @@ data:
 
   # Use subsetted Nextstrain data directly
   use_usher: False
-  recode_lineages_retrospectively: False
+  use_cladecombiner_as_of: False
 
 forecasting:
   # Where (directory) should model output and visualizations be stored?
