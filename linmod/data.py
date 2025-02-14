@@ -423,7 +423,7 @@ def main(cfg: Optional[dict]):
                 config["data"]["forecast_date"]["month"],
                 config["data"]["forecast_date"]["day"],
             )
-            + config["data"]["usher_lag"]
+            + timedelta(days=config["data"]["usher_lag"])
         )
         ymd = [
             str(usher_date.year),
