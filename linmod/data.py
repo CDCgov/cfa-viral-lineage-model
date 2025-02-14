@@ -43,7 +43,8 @@ DEFAULT_CONFIG = {
         # Should we use UShER to get the retrospective data?
         "use_usher": True,
         # We get UShER data this far past the forecast_date as a compromise between recency of calls and maximizing available evaluation data
-        "usher_lag": timedelta(days=168),
+        # (as number of days)
+        "usher_lag": 168,
         # Should we use cladecombiner.AsOfAggregator to ensure lineages are only those known as of the forecast_date?
         "use_cladecombiner_as_of": True,
         # Where (directory) should the unprocessed (but decompressed) data be stored?
@@ -423,16 +424,12 @@ def main(cfg: Optional[dict]):
                 config["data"]["forecast_date"]["month"],
                 config["data"]["forecast_date"]["day"],
             )
-            + config["data"]["usher_lag"]
+            + timedelta(days=config["data"]["usher_lag"])
         )
         ymd = [
             str(usher_date.year),
-            str(usher_date.month)
-            if usher_date.month >= 10
-            else "0" + str(usher_date.month),
-            str(usher_date.day)
-            if usher_date.day >= 10
-            else "0" + str(usher_date.day),
+            f"{usher_date.month:02d}",
+            f"{usher_date.day:02d}",
         ]
 
         usher_url = (
