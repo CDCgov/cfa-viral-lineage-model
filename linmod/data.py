@@ -271,7 +271,7 @@ def process_nextstrain(
 
     df = (
         pl.scan_csv(fp, separator="\t")
-        .rename({config["data"]["lineage_column_name"]: "lineage"})
+        .rename({config["data"]["nextstrain_lineage_column_name"]: "lineage"})
         # Cast with `strict=False` replaces invalid values with null,
         # which we can then filter out. Invalid values include dates
         # that are resolved only to the month, not the day
