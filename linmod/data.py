@@ -21,12 +21,15 @@ from human hosts are included.
 """
 
 import argparse
+import gzip
+import io
 import lzma
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
+import cladecombiner
 import polars as pl
 import yaml
 import zstandard
@@ -35,8 +38,17 @@ from .utils import ValidPath, expand_grid, print_message
 
 DEFAULT_CONFIG = {
     "data": {
-        # Where should the data be downloaded from?
-        "source": "https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst",
+        # Where should the NextStrain data be downloaded from?
+        "nextstrain_source": "https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst",
+        # Should we use UShER to get the retrospective data?
+        "use_usher": True,
+        # We get UShER data this far past the forecast_date as a compromise between recency of calls and maximizing available evaluation data
+        # (as number of days)
+        "usher_lag": 168,
+        # Where should the UShER data be looked for? (Strong filepath assumptions are made about folders within this)
+        "usher_root": "https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/",
+        # Should we use cladecombiner.AsOfAggregator to ensure lineages are only those known as of the forecast_date?
+        "use_cladecombiner_as_of": True,
         # Where (directory) should the unprocessed (but decompressed) data be stored?
         "cache_dir": ".cache/",
         # Where (files) should the processed datasets for modeling and evaluation
@@ -47,9 +59,11 @@ DEFAULT_CONFIG = {
         },
         # Should the data be redownloaded (and the cache replaced)?
         "redownload": False,
-        # What column should be renamed to `lineage`?
-        "lineage_column_name": "clade_nextstrain",
-        # What is the forecast date?
+        # What column should be renamed to `lineage` in the Nextstrain (reference) data?
+        "nextstrain_lineage_column_name": "clade_nextstrain",
+        # What column should be renamed to `lineage` in the UShER data?
+        "usher_lineage_column_name": "Nextstrain_clade",
+        # The as-of date that we wish to approximate running the pipeline on, may be the present
         # No sequences collected or reported after this date are included in the
         # modeling dataset.
         "forecast_date": {
@@ -239,55 +253,15 @@ class CountsFrame(pl.DataFrame):
         ].dtype.is_integer(), "Count column must be an integer type."
 
 
-def main(cfg: Optional[dict]):
-    config = DEFAULT_CONFIG
-
-    if cfg is not None:
-        config["data"] |= cfg["data"]
-
-    # Download the data, if necessary
-
-    parsed_url = urlparse(config["data"]["source"])
-    cache_path = (
-        ValidPath(config["data"]["cache_dir"])
-        / parsed_url.netloc
-        / parsed_url.path.lstrip("/").rsplit(".", 1)[0]
-    )
-
-    if config["data"]["redownload"] or not cache_path.exists():
-        print_message("Downloading...", end="")
-
-        with (
-            urlopen(config["data"]["source"]) as response,
-            cache_path.open("wb") as out_file,
-        ):
-            if parsed_url.path.endswith(".xz"):
-                with lzma.open(response) as in_file:
-                    out_file.write(in_file.read())
-
-            elif parsed_url.path.endswith(".zst"):
-                decompressor = zstandard.ZstdDecompressor()
-
-                with decompressor.stream_reader(response) as reader:
-                    out_file.write(reader.readall())
-
-            else:
-                raise ValueError(f"Unsupported file format: {parsed_url.path}")
-
-        print_message(" done.")
-    else:
-        print_message("Using cached data.")
-
-    # Preprocess and export the data
-
-    print_message("Exporting evaluation dataset...", end="")
-
-    forecast_date = pl.date(
-        config["data"]["forecast_date"]["year"],
-        config["data"]["forecast_date"]["month"],
-        config["data"]["forecast_date"]["day"],
-    )
-
+def process_nextstrain(
+    fp: str,
+    forecast_date,
+    config: dict,
+) -> pl.DataFrame:
+    """
+    Reads in Nextstrain data from (uncompressed) Nextstrain metadata file,
+    performs basic filtering and date wrangling.
+    """
     horizon_lower_date = forecast_date.dt.offset_by(
         f"{config['data']['horizon']['lower']}d"
     )
@@ -297,9 +271,9 @@ def main(cfg: Optional[dict]):
 
     model_all_lineages = len(config["data"]["lineages"]) == 0
 
-    full_df = (
-        pl.scan_csv(cache_path, separator="\t")
-        .rename({config["data"]["lineage_column_name"]: "lineage"})
+    df = (
+        pl.scan_csv(fp, separator="\t")
+        .rename({config["data"]["nextstrain_lineage_column_name"]: "lineage"})
         # Cast with `strict=False` replaces invalid values with null,
         # which we can then filter out. Invalid values include dates
         # that are resolved only to the month, not the day
@@ -330,7 +304,201 @@ def main(cfg: Optional[dict]):
         )
         .collect()
     )
+    return df
 
+
+def recode_clades_using_usher(
+    ns: pl.DataFrame,
+    usher_path,
+    usher_lineage_from: str,
+    lineage_to="lineage",
+) -> pl.DataFrame:
+    """
+    Replaces the "lineage" column in the input ns (Nextstrain) dataframe using
+    clades called by UShER, as read from an UShER metadata file.
+
+    Performs matching based on Genbank accessions. Unmatched entries are dropped.
+
+    Useful for better-approximating retrospectively running an analysis
+    as UShER metadata, including Nextstrain clade calls, are archived as far
+    back as mid 2021.
+    """
+    usher = (
+        pl.scan_csv(usher_path, separator="\t")
+        .filter(pl.col("genbank_accession").is_not_null())
+        .rename({"genbank_accession": "genbank_with_revision"})
+        .with_columns(
+            pl.col(usher_lineage_from)
+            # UShER names follow the Nextstrain_clade style not the clade_nextstrain style
+            .str.extract(r"(\d\d[A-Z])").alias(lineage_to),
+            # UShER includes the revision as part of the accession
+            # we just want to match accessions
+            genbank_accession=pl.col("genbank_with_revision").str.replace(
+                r"\.(\d+)", ""
+            ),
+            genbank_revision=pl.col("genbank_with_revision")
+            .str.extract(r"\.(\d+)")
+            .cast(pl.Int64),
+        )
+        .with_columns(
+            pl.when(pl.col(usher_lineage_from) == "recombinant")
+            .then(pl.col(usher_lineage_from))
+            .otherwise(pl.col(lineage_to))
+            .alias(lineage_to),
+        )
+        # There are occasionally multiple revisions for the same accession,
+        # take the most recent
+        .filter(
+            pl.col(lineage_to).is_not_null(),
+            pl.col("genbank_revision")
+            == pl.col("genbank_revision").max().over("genbank_accession"),
+        )
+        .select(["genbank_accession", "lineage"])
+        .collect()
+    )
+
+    return ns.drop("lineage").join(
+        usher, on="genbank_accession", how="inner", validate="1:1"
+    )
+
+
+def combine_clades(df: pl.DataFrame, as_of: date, lineage_col="lineage"):
+    """
+    Uses CDCGov/cladecombiner to recode the stated "lineage" such that
+    any Nextstrain clade which was not recognized (had not yet been named)
+    by the as-of date is put in its ancestor which was recognized.
+
+    Useful for when taxonomy shifts (a new clade is named) within a few
+    months of the desired `forecast_date` for better-approximating
+    retrospectively running the pipeline.
+    """
+    ns = cladecombiner.nextstrain_sc2_nomenclature
+    observed_clades = df[lineage_col].unique().to_list()
+    observed_clades.remove("recombinant")
+    ns.validate(observed_clades)  # throws error if clades aren't valid
+    taxa = [cladecombiner.Taxon(taxon, True) for taxon in observed_clades]
+    tree = ns.taxonomy_tree(taxa)
+    scheme = cladecombiner.PhylogeneticTaxonomyScheme(tree)
+    aggregator = cladecombiner.AsOfAggregator(scheme, ns, as_of)
+    mapping = aggregator.aggregate(taxa).to_str()
+    mapping["recombinant"] = "recombinant"
+    return df.with_columns(pl.col(lineage_col).replace_strict(mapping))
+
+
+def main(cfg: Optional[dict]):
+    config = DEFAULT_CONFIG
+
+    if cfg is not None:
+        config["data"] |= cfg["data"]
+
+    # Download the data, if necessary
+
+    parsed_url = urlparse(config["data"]["nextstrain_source"])
+    nextstrain_cache_path = (
+        ValidPath(config["data"]["cache_dir"])
+        / parsed_url.netloc
+        / parsed_url.path.lstrip("/").rsplit(".", 1)[0]
+    )
+
+    if config["data"]["redownload"] or not nextstrain_cache_path.exists():
+        print_message("Downloading Nextstrain data...", end="")
+
+        with (
+            urlopen(config["data"]["nextstrain_source"]) as response,
+            nextstrain_cache_path.open("wb") as out_file,
+        ):
+            if parsed_url.path.endswith(".xz"):
+                with lzma.open(response) as in_file:
+                    out_file.write(in_file.read())
+
+            elif parsed_url.path.endswith(".zst"):
+                decompressor = zstandard.ZstdDecompressor()
+
+                with decompressor.stream_reader(response) as reader:
+                    out_file.write(reader.readall())
+
+            else:
+                raise ValueError(f"Unsupported file format: {parsed_url.path}")
+
+        print_message(" done.")
+    else:
+        print_message("Using cached Nextstrain data.")
+
+    if config["data"]["use_usher"]:
+        usher_date = datetime(
+            config["data"]["forecast_date"]["year"],
+            config["data"]["forecast_date"]["month"],
+            config["data"]["forecast_date"]["day"],
+        ) + timedelta(days=config["data"]["usher_lag"])
+        ymd = [
+            str(usher_date.year),
+            f"{usher_date.month:02d}",
+            f"{usher_date.day:02d}",
+        ]
+
+        usher_url = (
+            config["data"]["usher_root"]
+            + "/".join(ymd)
+            + "/public-"
+            + "-".join(ymd)
+            + ".metadata.tsv.gz"
+        )
+
+        usher_cache_path = (
+            ValidPath(config["data"]["cache_dir"])
+            / "usher"
+            / ymd[0]
+            / ymd[1]
+            / ymd[2]
+            / "metadata.tsv"
+        )
+
+        if config["data"]["redownload"] or not usher_cache_path.exists():
+            print_message("Downloading UShER data...", end="")
+
+            with urlopen(usher_url) as response, usher_cache_path.open(
+                "wb"
+            ) as out_file:
+                compressed_file = response.read()
+                f = gzip.GzipFile(fileobj=io.BytesIO(compressed_file))
+                out_file.write(f.read())
+
+            print_message(" done.")
+        else:
+            print_message("Using cached UShER data.")
+
+    # Preprocess and export the data
+
+    forecast_date = pl.date(
+        config["data"]["forecast_date"]["year"],
+        config["data"]["forecast_date"]["month"],
+        config["data"]["forecast_date"]["day"],
+    )
+
+    full_df = process_nextstrain(nextstrain_cache_path, forecast_date, config)
+
+    if config["data"]["use_usher"]:
+        print_message("Using lineage assignments from UShER data.")
+        full_df = recode_clades_using_usher(
+            full_df,
+            usher_path=usher_cache_path,
+            usher_lineage_from=config["data"]["usher_lineage_column_name"],
+        )
+
+    if config["data"]["use_cladecombiner_as_of"]:
+        print_message(
+            "Ensuring only clades recognized as of the forecast date are present."
+        )
+        full_df = combine_clades(
+            full_df,
+            as_of=date(
+                config["data"]["forecast_date"]["year"],
+                config["data"]["forecast_date"]["month"],
+                config["data"]["forecast_date"]["day"],
+            ),
+        )
+
+    print_message("Exporting evaluation dataset...", end="")
     # Generate every combination of date-division-lineage, so that:
     #  1. The evaluation dataset will be evaluation-ready, with 0 counts
     #     where applicable
@@ -388,6 +556,7 @@ def main(cfg: Optional[dict]):
 
     print_message(" done.")
 
+    model_all_lineages = len(config["data"]["lineages"]) == 0
     if model_all_lineages:
         print_message(
             "Modeling all lineages observed in the data at any point in the horizon."
