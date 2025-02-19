@@ -45,6 +45,8 @@ DEFAULT_CONFIG = {
         # We get UShER data this far past the forecast_date as a compromise between recency of calls and maximizing available evaluation data
         # (as number of days)
         "usher_lag": 168,
+        # Where should the UShER data be looked for? (Strong filepath assumptions are made about folders within this)
+        "usher_root": "https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/",
         # Should we use cladecombiner.AsOfAggregator to ensure lineages are only those known as of the forecast_date?
         "use_cladecombiner_as_of": True,
         # Where (directory) should the unprocessed (but decompressed) data be stored?
@@ -308,7 +310,7 @@ def process_nextstrain(
 def recode_clades_using_usher(
     ns: pl.DataFrame,
     usher_path,
-    usher_lineage_from: dict,
+    usher_lineage_from: str,
     lineage_to="lineage",
 ) -> pl.DataFrame:
     """
@@ -435,7 +437,7 @@ def main(cfg: Optional[dict]):
         ]
 
         usher_url = (
-            "https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/"
+            config["data"]["usher_root"]
             + "/".join(ymd)
             + "/public-"
             + "-".join(ymd)
