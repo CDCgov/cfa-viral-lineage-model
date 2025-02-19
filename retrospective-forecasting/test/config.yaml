@@ -31,7 +31,7 @@ data:
   lineages: ["21A", "21I", "21J", "21K", "21L"]
 
   # Use subsetted Nextstrain data directly
-  use_usher: False
+  use_usher: True
   use_cladecombiner_as_of: False
 
 forecasting:
