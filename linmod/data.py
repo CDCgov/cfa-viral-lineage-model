@@ -469,8 +469,6 @@ def main(cfg: Optional[dict]):
 
     # Preprocess and export the data
 
-    print_message("Exporting evaluation dataset...", end="")
-
     forecast_date = pl.date(
         config["data"]["forecast_date"]["year"],
         config["data"]["forecast_date"]["month"],
@@ -500,6 +498,7 @@ def main(cfg: Optional[dict]):
             ),
         )
 
+    print_message("Exporting evaluation dataset...", end="")
     # Generate every combination of date-division-lineage, so that:
     #  1. The evaluation dataset will be evaluation-ready, with 0 counts
     #     where applicable
