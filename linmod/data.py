@@ -480,6 +480,7 @@ def main(cfg: Optional[dict]):
     full_df = process_nextstrain(nextstrain_cache_path, forecast_date, config)
 
     if config["data"]["use_usher"]:
+        print_message("Using lineage assignments from UShER data.")
         full_df = recode_clades_using_usher(
             full_df,
             usher_path=usher_cache_path,
@@ -487,6 +488,9 @@ def main(cfg: Optional[dict]):
         )
 
     if config["data"]["use_cladecombiner_as_of"]:
+        print_message(
+            "Ensuring only clades recognized as of the forecast date are present."
+        )
         full_df = combine_clades(
             full_df,
             as_of=date(
