@@ -25,7 +25,7 @@ import gzip
 import io
 import lzma
 from datetime import date, datetime, timedelta
-from typing import Collection, Optional
+from typing import Optional
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
@@ -253,20 +253,25 @@ class CountsFrame(pl.DataFrame):
 
 def process_nextstrain(
     fp: str,
-    rename: dict,
-    horizon_lower_date,
-    horizon_upper_date,
-    included_divisions: Collection[str],
-    included_lineages: Collection[str],
-    model_all_lineages: bool,
+    forecast_date,
+    config: dict,
 ) -> pl.DataFrame:
     """
     Reads in Nextstrain data from (uncompressed) Nextstrain metadata file,
     performs basic filtering and date wrangling.
     """
+    horizon_lower_date = forecast_date.dt.offset_by(
+        f"{config['data']['horizon']['lower']}d"
+    )
+    horizon_upper_date = forecast_date.dt.offset_by(
+        f"{config['data']['horizon']['upper']}d"
+    )
+
+    model_all_lineages = len(config["data"]["lineages"]) == 0
+
     df = (
         pl.scan_csv(fp, separator="\t")
-        .rename(rename)
+        .rename({config["data"]["lineage_column_name"]: "lineage"})
         # Cast with `strict=False` replaces invalid values with null,
         # which we can then filter out. Invalid values include dates
         # that are resolved only to the month, not the day
@@ -283,13 +288,14 @@ def process_nextstrain(
             # Drop samples claiming to be reported before being collected
             pl.col("date") <= pl.col("date_submitted"),
             # Drop samples not from humans in the included US divisions
-            pl.col("division").is_in(included_divisions),
+            pl.col("division").is_in(config["data"]["included_divisions"]),
             country="USA",
             host="Homo sapiens",
         )
         .with_columns(
             lineage=pl.when(
-                pl.col("lineage").is_in(included_lineages) | model_all_lineages
+                pl.col("lineage").is_in(config["data"]["lineages"])
+                | model_all_lineages
             )
             .then(pl.col("lineage"))
             .otherwise(pl.lit("other"))
@@ -388,7 +394,6 @@ def main(cfg: Optional[dict]):
     parsed_url = urlparse(config["data"]["nextstrain_source"])
     nextstrain_cache_path = (
         ValidPath(config["data"]["cache_dir"])
-        / "nextstrain"
         / parsed_url.netloc
         / parsed_url.path.lstrip("/").rsplit(".", 1)[0]
     )
@@ -470,24 +475,7 @@ def main(cfg: Optional[dict]):
         config["data"]["forecast_date"]["day"],
     )
 
-    horizon_lower_date = forecast_date.dt.offset_by(
-        f"{config['data']['horizon']['lower']}d"
-    )
-    horizon_upper_date = forecast_date.dt.offset_by(
-        f"{config['data']['horizon']['upper']}d"
-    )
-
-    model_all_lineages = len(config["data"]["lineages"]) == 0
-
-    full_df = process_nextstrain(
-        nextstrain_cache_path,
-        rename={config["data"]["nextstrain_lineage_column_name"]: "lineage"},
-        horizon_lower_date=horizon_lower_date,
-        horizon_upper_date=horizon_upper_date,
-        included_divisions=config["data"]["included_divisions"],
-        included_lineages=config["data"]["lineages"],
-        model_all_lineages=model_all_lineages,
-    )
+    full_df = process_nextstrain(nextstrain_cache_path, forecast_date, config)
 
     if config["data"]["use_usher"]:
         full_df = recode_clades_using_usher(
@@ -563,6 +551,7 @@ def main(cfg: Optional[dict]):
 
     print_message(" done.")
 
+    model_all_lineages = len(config["data"]["lineages"]) == 0
     if model_all_lineages:
         print_message(
             "Modeling all lineages observed in the data at any point in the horizon."
