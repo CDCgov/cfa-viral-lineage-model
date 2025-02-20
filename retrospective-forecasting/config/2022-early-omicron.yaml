@@ -1,15 +1,15 @@
 data:
   # Where are the processed datasets for modeling and evaluation stored?
   save_file:
-    model: data/early-21L/model.parquet
-    eval: data/early-21L/eval.parquet
+    model: data/2022-early-omicron/model.parquet
+    eval: data/2022-early-omicron/eval.parquet
 
   # What is the forecast date?
   # No sequences collected or reported after this date are included in the
   # modeling dataset.
   forecast_date:
     year: 2022
-    month: 1
+    month: 2
     day: 1
 
   # The modeling dataset will contain sequences collected and reported within
@@ -26,7 +26,7 @@ data:
 
 forecasting:
   # Where (directory) should model output and visualizations be stored?
-  save_dir: out/forecasts/early-21L/
+  save_dir: out/forecasts/2022-early-omicron/
 
   # Which models should be fit?
   models:
@@ -62,7 +62,7 @@ forecasting:
 
 evaluation:
   # Where (directory) should model scores and visualizations be stored?
-  save_dir: out/eval/early-21L
+  save_dir: out/eval/2022-early-omicron
 
   # How should forecasts be evaluated?
   metrics:
