@@ -354,6 +354,7 @@ def recode_clades_using_usher(
             == pl.col("genbank_revision").max().over("genbank_accession"),
         )
         .select(["genbank_accession", "lineage"])
+        .unique()
         .collect()
     )
 
@@ -456,9 +457,10 @@ def main(cfg: Optional[dict]):
         if config["data"]["redownload"] or not usher_cache_path.exists():
             print_message("Downloading UShER data...", end="")
 
-            with urlopen(usher_url) as response, usher_cache_path.open(
-                "wb"
-            ) as out_file:
+            with (
+                urlopen(usher_url) as response,
+                usher_cache_path.open("wb") as out_file,
+            ):
                 compressed_file = response.read()
                 f = gzip.GzipFile(fileobj=io.BytesIO(compressed_file))
                 out_file.write(f.read())
