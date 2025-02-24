@@ -327,6 +327,7 @@ def recode_clades_using_usher(
         pl.scan_csv(usher_path, separator="\t")
         .filter(pl.col("genbank_accession").is_not_null())
         .rename({"genbank_accession": "genbank_with_revision"})
+        .unique("genbank_with_revision")
         .with_columns(
             pl.col(usher_lineage_from)
             # UShER names follow the Nextstrain_clade style not the clade_nextstrain style
@@ -354,7 +355,6 @@ def recode_clades_using_usher(
             == pl.col("genbank_revision").max().over("genbank_accession"),
         )
         .select(["genbank_accession", "lineage"])
-        .unique()
         .collect()
     )
 
