@@ -327,6 +327,7 @@ def recode_clades_using_usher(
         pl.scan_csv(usher_path, separator="\t")
         .filter(pl.col("genbank_accession").is_not_null())
         .rename({"genbank_accession": "genbank_with_revision"})
+        .unique("genbank_with_revision")
         .with_columns(
             pl.col(usher_lineage_from)
             # UShER names follow the Nextstrain_clade style not the clade_nextstrain style
@@ -456,9 +457,10 @@ def main(cfg: Optional[dict]):
         if config["data"]["redownload"] or not usher_cache_path.exists():
             print_message("Downloading UShER data...", end="")
 
-            with urlopen(usher_url) as response, usher_cache_path.open(
-                "wb"
-            ) as out_file:
+            with (
+                urlopen(usher_url) as response,
+                usher_cache_path.open("wb") as out_file,
+            ):
                 compressed_file = response.read()
                 f = gzip.GzipFile(fileobj=io.BytesIO(compressed_file))
                 out_file.write(f.read())
