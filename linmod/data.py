@@ -375,14 +375,24 @@ def combine_clades(df: pl.DataFrame, as_of: date, lineage_col="lineage"):
     """
     ns = cladecombiner.nextstrain_sc2_nomenclature
     observed_clades = df[lineage_col].unique().to_list()
-    observed_clades.remove("recombinant")
-    ns.validate(observed_clades)  # throws error if clades aren't valid
-    taxa = [cladecombiner.Taxon(taxon, True) for taxon in observed_clades]
-    tree = ns.taxonomy_tree(taxa)
-    scheme = cladecombiner.PhylogeneticTaxonomyScheme(tree)
-    aggregator = cladecombiner.AsOfAggregator(scheme, ns, as_of)
-    mapping = aggregator.aggregate(taxa).to_str()
-    mapping["recombinant"] = "recombinant"
+
+    assert len(observed_clades) > 0
+    has_recombinants = "recombinant" in observed_clades
+    if has_recombinants:
+        observed_clades.remove("recombinant")
+
+    if len(observed_clades) == 0:
+        mapping = {"recombinant": "recombinant"}
+    else:
+        ns.validate(observed_clades)  # throws error if clades aren't valid
+        taxa = [cladecombiner.Taxon(taxon, True) for taxon in observed_clades]
+        tree = ns.taxonomy_tree(taxa)
+        scheme = cladecombiner.PhylogeneticTaxonomyScheme(tree)
+        aggregator = cladecombiner.AsOfAggregator(scheme, ns, as_of)
+        mapping = aggregator.aggregate(taxa).to_str()
+        if has_recombinants:
+            mapping["recombinant"] = "recombinant"
+
     return df.with_columns(pl.col(lineage_col).replace_strict(mapping))
 
 

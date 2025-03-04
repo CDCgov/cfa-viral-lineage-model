@@ -31,18 +31,30 @@ def get_plot_data(
     if observed_only:
         last_samp_date = last_date
 
-    mal = True if (lineages is None or len(lineages) == 0) else False
+    cfg_lineages = lineages if lineages is not None else []
+
+    y = last_date.year
+    m = last_date.month
+    d = last_date.day
+
+    cfg = linmod.data.DEFAULT_CONFIG.copy()
+    cfg["data"] |= {
+        "forecast_date": {
+            "year": y,
+            "month": m,
+            "day": d,
+        },
+        "horizon": {
+            "upper": 0,
+            "lower": (first_date - last_date).days,
+        },
+        "lineages": cfg_lineages,
+    }
 
     df = linmod.data.process_nextstrain(
         ns_path,
-        rename={"clade_nextstrain": "lineage"},
-        horizon_lower_date=first_date,
-        horizon_upper_date=last_date,
-        included_divisions=linmod.data.DEFAULT_CONFIG["data"][
-            "included_divisions"
-        ],
-        model_all_lineages=mal,
-        included_lineages=lineages,
+        pl.date(y, m, d),
+        cfg,
     ).filter(
         # If specified, keep only samples seen by last date
         pl.col("date_submitted")
