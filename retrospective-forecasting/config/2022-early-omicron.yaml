@@ -38,7 +38,7 @@ forecasting:
   mcmc:
     warmup: 3000
     samples: 3000
-    thinning: 3
+    thinning: 12
     chains: 4
     convergence:
       # one of: "all" or "failing" to write a parquet of ESS and PSRF

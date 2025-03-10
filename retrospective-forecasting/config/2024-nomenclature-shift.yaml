@@ -24,6 +24,8 @@ data:
   # All others will be aggregated into "other".
   lineages: ["21A", "21I", "21J", "21K", "21L", "22C"]
 
+  usher_lag: 168 # shrink this until it doesn't error
+
 forecasting:
   # Where (directory) should model output and visualizations be stored?
   save_dir: out/forecasts/2024-nomenclature-shift/
@@ -38,7 +40,7 @@ forecasting:
   mcmc:
     warmup: 3000
     samples: 3000
-    thinning: 3
+    thinning: 12
     chains: 4
     convergence:
       # one of: "all" or "failing" to write a parquet of ESS and PSRF
