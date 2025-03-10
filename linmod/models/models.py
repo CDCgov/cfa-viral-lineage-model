@@ -192,7 +192,7 @@ class HierarchicalDivisionsModel(MultinomialModel):
         parameter_samples = (
             expand_grid(
                 chain=np.arange(mcmc.num_chains),
-                iteration=np.arange(mcmc.num_samples / mcmc.thinning),
+                iteration=np.arange(mcmc.num_samples // mcmc.thinning),
                 division=self.division_names,
                 lineage=self.lineage_names,
             )
@@ -200,7 +200,7 @@ class HierarchicalDivisionsModel(MultinomialModel):
                 beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
                 beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
                 sample_index=pl.col("iteration")
-                + pl.col("chain") * (mcmc.num_samples / mcmc.thinning)
+                + pl.col("chain") * (mcmc.num_samples // mcmc.thinning)
                 + 1,
             )
             .drop("chain", "iteration")
@@ -406,7 +406,7 @@ class IndependentDivisionsModel(MultinomialModel):
         parameter_samples = (
             expand_grid(
                 chain=np.arange(mcmc.num_chains),
-                iteration=np.arange(mcmc.num_samples / mcmc.thinning),
+                iteration=np.arange(mcmc.num_samples // mcmc.thinning),
                 division=self.division_names,
                 lineage=self.lineage_names,
             )
@@ -414,7 +414,7 @@ class IndependentDivisionsModel(MultinomialModel):
                 beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
                 beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
                 sample_index=pl.col("iteration")
-                + pl.col("chain") * (mcmc.num_samples / mcmc.thinning)
+                + pl.col("chain") * (mcmc.num_samples // mcmc.thinning)
                 + 1,
             )
             .drop("chain", "iteration")
@@ -512,7 +512,7 @@ class BaselineModel(MultinomialModel):
         parameter_samples = (
             expand_grid(
                 chain=np.arange(mcmc.num_chains),
-                iteration=np.arange(mcmc.num_samples / mcmc.thinning),
+                iteration=np.arange(mcmc.num_samples // mcmc.thinning),
                 division=self.division_names,
                 lineage=self.lineage_names,
             )
@@ -521,7 +521,7 @@ class BaselineModel(MultinomialModel):
                     mcmc.get_samples()["logit_phi"]
                 ).flatten(),
                 sample_index=pl.col("iteration")
-                + pl.col("chain") * (mcmc.num_samples / mcmc.thinning)
+                + pl.col("chain") * (mcmc.num_samples // mcmc.thinning)
                 + 1,
             )
             .drop("chain", "iteration")
