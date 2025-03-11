@@ -24,7 +24,8 @@ data:
   # All others will be aggregated into "other".
   lineages: ["24A", "24B", "24C", "24E", "recombinant"]
 
-  usher_lag: 168 # shrink this until it doesn't error
+  # UShER recoding will use sequences from forecast_date + datetime.timedelta(days=usher_lag)
+  usher_lag: 168
 
 forecasting:
   # Where (directory) should model output and visualizations be stored?
@@ -56,9 +57,9 @@ forecasting:
   # Settings for HHS region, population-weighted aggregate forecasts
   survey:
     # Should the HHS region forecasts be made
-    make: True
+    make: False
     # Should the HHS region forecasts be plotted (they are not evaluable!)
-    plot: True
+    plot: False
     # Where to get population size data from, path to a CSV
     pop_sizes: "pop_sizes_nst_est_2023.csv"
 
