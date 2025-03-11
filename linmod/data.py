@@ -269,8 +269,6 @@ def process_nextstrain(
         f"{config['data']['horizon']['upper']}d"
     )
 
-    model_all_lineages = len(config["data"]["lineages"]) == 0
-
     df = (
         pl.scan_csv(fp, separator="\t")
         .rename({config["data"]["nextstrain_lineage_column_name"]: "lineage"})
@@ -293,14 +291,6 @@ def process_nextstrain(
             pl.col("division").is_in(config["data"]["included_divisions"]),
             country="USA",
             host="Homo sapiens",
-        )
-        .with_columns(
-            lineage=pl.when(
-                pl.col("lineage").is_in(config["data"]["lineages"])
-                | model_all_lineages
-            )
-            .then(pl.col("lineage"))
-            .otherwise(pl.lit("other"))
         )
         .collect()
     )
@@ -509,6 +499,16 @@ def main(cfg: Optional[dict]):
                 config["data"]["forecast_date"]["day"],
             ),
         )
+
+    model_all_lineages = len(config["data"]["lineages"]) == 0
+    full_df = full_df.with_columns(
+        lineage=pl.when(
+            pl.col("lineage").is_in(config["data"]["lineages"])
+            | model_all_lineages
+        )
+        .then(pl.col("lineage"))
+        .otherwise(pl.lit("other"))
+    )
 
     print_message("Exporting evaluation dataset...", end="")
     # Generate every combination of date-division-lineage, so that:
