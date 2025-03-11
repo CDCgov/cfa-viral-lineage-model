@@ -42,8 +42,9 @@ DEFAULT_CONFIG = {
         "nextstrain_source": "https://data.nextstrain.org/files/ncov/open/metadata.tsv.zst",
         # Should we use UShER to get the retrospective data?
         "use_usher": True,
-        # We get UShER data this far past the forecast_date as a compromise between recency of calls and maximizing available evaluation data
-        # (as number of days)
+        # We get UShER data from forecast_date + datetime.timedelta(days = usher_lag) rounded to the first of the month.
+        # This is a compromise between recency of calls and maximizing available evaluation data, and accounts for
+        # the archived data only being retained on the first of each month
         "usher_lag": 168,
         # Where should the UShER data be looked for? (Strong filepath assumptions are made about folders within this)
         "usher_root": "https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/",
@@ -426,11 +427,14 @@ def main(cfg: Optional[dict]):
         print_message("Using cached Nextstrain data.")
 
     if config["data"]["use_usher"]:
-        usher_date = datetime(
+        usher_date_unrounded = datetime(
             config["data"]["forecast_date"]["year"],
             config["data"]["forecast_date"]["month"],
             config["data"]["forecast_date"]["day"],
         ) + timedelta(days=config["data"]["usher_lag"])
+        usher_date = datetime(
+            usher_date_unrounded.year, usher_date_unrounded.month, 1
+        )
         ymd = [
             str(usher_date.year),
             f"{usher_date.month:02d}",
