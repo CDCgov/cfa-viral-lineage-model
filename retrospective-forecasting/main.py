@@ -70,6 +70,10 @@ with open(plot_script_file, "w") as plot_script:
         )
         mcmc.run(jax.random.key(0))
 
+        print_message(
+            "Checking convergence...",
+            end="",
+        )
         try:
             convergence_config = config["forecasting"]["mcmc"]["convergence"]
 
@@ -105,7 +109,12 @@ with open(plot_script_file, "w") as plot_script:
         except Exception as e:
             print_message("An error occurred while checking convergence:")
             print_message(e)
+        print_message("Done.")
 
+        print_message(
+            "Creating forecast...",
+            end="",
+        )
         forecast = model.create_forecasts(
             mcmc,
             np.arange(
@@ -117,6 +126,7 @@ with open(plot_script_file, "w") as plot_script:
         forecast.write_parquet(
             forecast_dir / f"forecasts_{model_name}.parquet"
         )
+        print_message("Done.")
 
         if config["forecasting"]["survey"]["make"]:
             print_message("Aggregating to HHS regions")
