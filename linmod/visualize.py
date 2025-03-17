@@ -96,7 +96,7 @@ if __name__ == "__main__":
         "-d",
         "--data",
         type=str,
-        help="Path to forecasts parquet file",
+        help="Path to count data parquet file",
         default=None,
     )
     parser.add_argument(
