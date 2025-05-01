@@ -94,7 +94,7 @@ class ProportionsEvaluator:
         Monte Carlo approximation to the energy score (multivariate generalization of
         CRPS) of proportion forecasts for each division-day.
 
-        $E[ || f_{tg} - \phi_{tg} ||_p ] - \frac{1}{2} E[ || f_{tg} - f_{tg}' ||_p ]$
+        $E[ || f_{tg} - \phi_{tg} ||_p ] - \frac{1}{2} E[ || \phi_{tg} - \phi_{tg}' ||_p ]$
 
         Returns a data frame with columns `(division, fd_offset, energy_score)`.
         """
