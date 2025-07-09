@@ -103,6 +103,7 @@ class ProportionsEvaluator:
             # First, we will gather the values of phi' we will use for (phi-phi')
             self.df.group_by("date", "fd_offset", "division", "lineage")
             .agg(pl.col("sample_index"), pl.col("phi"), pl.col("phi_sampled"))
+            # TODO: it would be better to randomly select replicates in some way
             .with_columns(replicate=pl_list_cycle(pl.col("phi_sampled"), 1))
             .explode("sample_index", "phi", "phi_sampled", "replicate")
             # Now we can compute the score
@@ -249,6 +250,7 @@ class CountsEvaluator:
                 pl.col("count"),
                 pl.col("count_sampled"),
             )
+            # TODO: it would be better to randomly select replicates in some way
             .with_columns(replicate=pl_list_cycle(pl.col("count_sampled"), 1))
             .explode("sample_index", "count", "count_sampled", "replicate")
             # Now we can compute the score
