@@ -590,6 +590,7 @@ def main(cfg: Optional[dict]):
         # Sort to guarantee consistent output, since `.unique()` does not
         .sort("fd_offset", "division", "lineage")
     )
+    print(model_df)
 
     model_divisions = set(model_df["division"].unique())
     assert (
@@ -597,14 +598,9 @@ def main(cfg: Optional[dict]):
     ), "Evaluation and modeling data contain different divisions!"
 
     assert (
-        missing := model_df.join(
-            eval_df,
-            on=["date", "fd_offset", "division", "lineage"],
-            how="anti",
-        )
-    ).shape[
-        0
-    ] == 0, f"Division-days are missing from modeling data:\n{missing}"
+        model_df.shape
+        == eval_df.filter(pl.sum("count").over("date", "division") > 0).shape
+    ), "Modeling data is missing division-dates present in evaluation data!"
 
     all_data = model_df.join(
         eval_df,
