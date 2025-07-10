@@ -543,7 +543,7 @@ def main(cfg: Optional[dict]):
         .sort("fd_offset", "division", "lineage")
     )
 
-    eval_divisions = set(eval_df["division"].unique().sort())
+    eval_divisions = set(eval_df["division"].unique())
     if (
         not_included := set(config["data"]["included_divisions"]).difference(
             eval_divisions
@@ -591,7 +591,7 @@ def main(cfg: Optional[dict]):
         .sort("fd_offset", "division", "lineage")
     )
 
-    model_divisions = set(model_df["division"].unique().sort())
+    model_divisions = set(model_df["division"].unique())
     assert (
         model_divisions == eval_divisions
     ), "Evaluation and modeling data contain different divisions!"
