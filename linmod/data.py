@@ -543,6 +543,16 @@ def main(cfg: Optional[dict]):
         .sort("fd_offset", "division", "lineage")
     )
 
+    eval_divisions = set(eval_df["division"].unique().sort())
+    if (
+        not_included := set(config["data"]["included_divisions"]).difference(
+            eval_divisions
+        )
+    ) != set():
+        print_message(
+            f" The following divisions have no data and have been dropped from the evaluation set: {not_included}"
+        )
+
     eval_df.write_parquet(ValidPath(config["data"]["save_file"]["eval"]))
 
     print_message(" done.")
@@ -561,12 +571,44 @@ def main(cfg: Optional[dict]):
             fd_offset=(pl.col("date") - forecast_date).dt.total_days(),
             count=pl.col("count").fill_null(0),
         )
+        .join(
+            eval_df.rename({"count": "eval_count"}),
+            on=["date", "fd_offset", "division", "lineage"],
+            how="full",
+            validate="1:1",
+        )
+        # Remove division-days where there are no samples in both modeling and
+        # evaluation data, for brevity. Need to cross-reference evaluation data to
+        # avoid dropping divisions without any modeling data but with evaluation data
+        .filter(
+            (
+                (pl.sum("count").over("date", "division") > 0)
+                | (pl.sum("eval_count").over("date", "division") > 0)
+            )
+        )
         .select("date", "fd_offset", "division", "lineage", "count")
-        # Remove division-days where no samples were collected, for brevity
-        .filter(pl.sum("count").over("date", "division") > 0)
         # Sort to guarantee consistent output, since `.unique()` does not
         .sort("fd_offset", "division", "lineage")
     )
+
+    model_divisions = set(model_df["division"].unique().sort())
+    assert (
+        model_divisions == eval_divisions
+    ), "Evaluation and modeling data contain different divisions!"
+
+    assert (
+        model_df.shape == eval_df.shape
+    ), f"Model data has {model_df.shape[0]} rows, but expected {eval_df.shape[0]}"
+
+    all_data = model_df.join(
+        eval_df,
+        on=["date", "fd_offset", "division", "lineage"],
+        how="full",
+        validate="1:1",
+    ).with_columns(eval_surplus=(pl.col("count_right") - pl.col("count")))
+    assert (
+        all_data["eval_surplus"] >= 0
+    ).all(), "Evaluation dataset must have at least as many sequences as modeling data"
 
     model_df.write_parquet(ValidPath(config["data"]["save_file"]["model"]))
 
