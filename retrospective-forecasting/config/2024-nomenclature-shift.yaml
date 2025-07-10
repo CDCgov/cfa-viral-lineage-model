@@ -72,3 +72,4 @@ evaluation:
     - ProportionsEvaluator
     - CountsEvaluator:
       - count_sampler: multinomial
+      - seed: 42

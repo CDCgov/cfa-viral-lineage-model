@@ -121,7 +121,7 @@ def test_forecastframe():
         "phi",
     }
 
-    rng = default_rng()
+    rng = default_rng(0)
 
     # Ensure proper data passes validation
     samples, _ = _generate_fake_samples_and_data(
