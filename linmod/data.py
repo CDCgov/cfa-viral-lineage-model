@@ -597,8 +597,14 @@ def main(cfg: Optional[dict]):
     ), "Evaluation and modeling data contain different divisions!"
 
     assert (
-        model_df.shape == eval_df.shape
-    ), f"Model data has {model_df.shape[0]} rows, but expected {eval_df.shape[0]}"
+        missing := model_df.join(
+            eval_df,
+            on=["date", "fd_offset", "division", "lineage"],
+            how="anti",
+        )
+    ).shape[
+        0
+    ] == 0, f"Division-days are missing from modeling data:\n{missing}"
 
     all_data = model_df.join(
         eval_df,

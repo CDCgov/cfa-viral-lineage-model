@@ -34,8 +34,8 @@ forecasting:
   # Which models should be fit?
   models:
     - BaselineModel
-    # - IndependentDivisionsModel
-    # - HierarchicalDivisionsModel
+    - IndependentDivisionsModel
+    - HierarchicalDivisionsModel
 
   # MCMC configuration
   mcmc:
