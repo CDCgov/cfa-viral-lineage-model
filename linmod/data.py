@@ -590,7 +590,6 @@ def main(cfg: Optional[dict]):
         # Sort to guarantee consistent output, since `.unique()` does not
         .sort("fd_offset", "division", "lineage")
     )
-    print(model_df)
 
     model_divisions = set(model_df["division"].unique())
     assert (
