@@ -34,8 +34,8 @@ forecasting:
   # Which models should be fit?
   models:
     - BaselineModel
-    - IndependentDivisionsModel
-    - HierarchicalDivisionsModel
+    # - IndependentDivisionsModel
+    # - HierarchicalDivisionsModel
 
   # MCMC configuration
   mcmc:
@@ -72,3 +72,4 @@ evaluation:
     - ProportionsEvaluator
     - CountsEvaluator:
       - count_sampler: multinomial
+      - seed: 42
