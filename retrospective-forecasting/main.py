@@ -199,7 +199,7 @@ with open(plot_script_file, "w") as plot_script:
             else:
                 evaluator_name = evaluator_config
                 evaluator_args = {}
-            print(evaluator_args)
+
             evaluator = getattr(linmod.eval, evaluator_name)(
                 samples=forecast,
                 data=eval_data,
