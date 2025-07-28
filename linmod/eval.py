@@ -89,54 +89,6 @@ class ProportionsEvaluator:
             .sum()
         )
 
-    def _energy_score_per_division_day(self, p=2) -> pl.LazyFrame:
-        r"""
-        Monte Carlo approximation to the energy score (multivariate generalization of
-        CRPS) of proportion forecasts for each division-day.
-
-        $E[ || f_{tg} - \phi_{tg} ||_p ] - \frac{1}{2} E[ || f_{tg} - f_{tg}' ||_p ]$
-
-        Returns a data frame with columns `(division, fd_offset, energy_score)`.
-        """
-
-        return (
-            # First, we will gather the values of phi' we will use for (phi-phi')
-            self.df.group_by("date", "fd_offset", "division", "lineage")
-            .agg(pl.col("sample_index"), pl.col("phi"), pl.col("phi_sampled"))
-            .with_columns(replicate=pl_list_cycle(pl.col("phi_sampled"), 1))
-            .explode("sample_index", "phi", "phi_sampled", "replicate")
-            # Now we can compute the score
-            .group_by("fd_offset", "division", "sample_index")
-            .agg(
-                term1=pl_norm(pl.col("phi") - pl.col("phi_sampled"), p),
-                term2=pl_norm(
-                    (pl.col("phi_sampled") - pl.col("replicate")), p
-                ),
-            )
-            .group_by("fd_offset", "division")
-            .agg(
-                energy_score=pl.col("term1").mean()
-                - 0.5 * pl.col("term2").mean()
-            )
-        )
-
-    def energy_score(self, p=2) -> float:
-        r"""
-        The energy score of proportion forecasts, summed over all divisions and days.
-
-        $$
-        \sum_{t, g} E[ || f_{tg} - \phi_{tg} ||_p ]
-        - \frac{1}{2} E[ || f_{tg} - f_{tg}' ||_p ]
-        $$
-        """
-
-        return (
-            self._energy_score_per_division_day(p=p)
-            .collect()
-            .get_column("energy_score")
-            .sum()
-        )
-
 
 class CountsEvaluator:
     _count_samplers = {
@@ -148,15 +100,32 @@ class CountsEvaluator:
         samples: ForecastFrame,
         data: CountsFrame,
         count_sampler: str = "multinomial",
-        seed: int = None,
-    ):
+        seed: int | None = None,
+        all_counts: pl.DataFrame | pl.LazyFrame | None = None,
+    ) -> None:
         r"""
         Evaluates count forecasts $\hat{Y}$ sampled from a specified observation model given model
         proportion forecasts.
 
         `count_sampler` should be one of the keys in `CountsEvaluator._count_samplers`.
         `seed` is an optional random seed for the count sampler.
+        `all_counts` is an optional way to feed in a pre-merged dataframe of observed and predicted counts
         """
+
+        if all_counts is not None:
+            assert set(all_counts.columns).issuperset(
+                [
+                    "count",
+                    "count_sampled",
+                    "lineage",
+                    "date",
+                    "fd_offset",
+                    "division",
+                    "sample_index",
+                ]
+            )
+            self.df = all_counts.lazy()
+            return None
 
         assert count_sampler in type(self)._count_samplers, (
             f"Count sampler '{count_sampler}' not found. "
@@ -199,6 +168,43 @@ class CountsEvaluator:
         ).all()
 
         self.df = self.df.lazy()
+
+    def _uncovered_per_lineage_division_day(self, alpha=0.05) -> pl.LazyFrame:
+        """
+        For each lineage in each division on each day, False if the observed count in the
+        (1 - alpha) x 100% univariate prediction interval, True otherwise.
+        """
+        q_low = alpha / 2
+        q_high = 1.0 - q_low
+
+        return (
+            self.df.group_by("fd_offset", "division", "lineage")
+            .agg(
+                lci=pl.col("count_sampled").quantile(q_low),
+                uci=pl.col("count_sampled").quantile(q_high),
+                count=pl.col("count").min(),  # all counts are the same
+            )
+            .with_columns(
+                uncovered=(
+                    (pl.col("count") < pl.col("lci"))
+                    | (pl.col("count") > pl.col("uci"))
+                )
+            )
+        )
+
+    def uncovered_proportion(self, alpha=0.05) -> float:
+        """
+        Proportion of all lineage observation counts on all division-days not covered
+        by the (central) 1 - alpha prediction interval.
+        """
+        print(self._uncovered_per_lineage_division_day(alpha))
+        return (
+            self._uncovered_per_lineage_division_day(alpha)
+            .collect()
+            .get_column("uncovered")
+            .cast(pl.Int8)
+            .mean()
+        )
 
     def _mean_norm_per_division_day(self, p=1) -> pl.LazyFrame:
         r"""
