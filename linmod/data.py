@@ -625,12 +625,6 @@ def main(cfg: Optional[dict]):
         model_divisions == eval_divisions
     ), "Evaluation and modeling data contain different divisions!"
 
-    print(
-        model_df.filter(
-            pl.col("fd_offset") == 0,
-            pl.col("lineage") == model_df["lineage"].to_list()[0],
-        )
-    )
     assert model_df.filter(
         pl.col("fd_offset") == 0,
         pl.col("lineage") == model_df["lineage"].to_list()[0],
