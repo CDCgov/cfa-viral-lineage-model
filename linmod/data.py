@@ -550,7 +550,7 @@ def main(cfg: Optional[dict]):
         )
     ) != set():
         print_message(
-            f" The following divisions have no data and have been dropped from the evaluation set: {not_included}"
+            f" The following divisions have no data and have been dropped from the evaluation dataset: {not_included}"
         )
 
     eval_df.write_parquet(ValidPath(config["data"]["save_file"]["eval"]))
@@ -571,25 +571,33 @@ def main(cfg: Optional[dict]):
             fd_offset=(pl.col("date") - forecast_date).dt.total_days(),
             count=pl.col("count").fill_null(0),
         )
-        .join(
-            eval_df.rename({"count": "eval_count"}),
-            on=["date", "fd_offset", "division", "lineage"],
-            how="full",
-            validate="1:1",
-        )
-        # Remove division-days where there are no samples in both modeling and
-        # evaluation data, for brevity. Need to cross-reference evaluation data to
-        # avoid dropping divisions without any modeling data but with evaluation data
-        .filter(
-            (
-                (pl.sum("count").over("date", "division") > 0)
-                | (pl.sum("eval_count").over("date", "division") > 0)
-            )
-        )
         .select("date", "fd_offset", "division", "lineage", "count")
+        # Remove division-days where no samples were collected, for brevity
+        .filter(pl.sum("count").over("date", "division") > 0)
         # Sort to guarantee consistent output, since `.unique()` does not
         .sort("fd_offset", "division", "lineage")
     )
+
+    model_divisions = set(model_df["division"].unique())
+    missing_model_divisions = eval_divisions.difference(model_divisions)
+    # Make sure every division we want to evaluate gets modeled
+    if missing_model_divisions:
+        print_message(
+            f" The following divisions have evaluation data but no modeling data (and are retained in the modeling dataset with all 0 counts): {missing_model_divisions}"
+        )
+        lineages = model_df["lineage"].unique().to_list()
+        zero_df = (
+            pl.DataFrame({"lineage": lineages})
+            .with_columns(
+                count=pl.lit(0), date=pl.lit(forecast_date), fd_offset=0
+            )
+            .join(
+                pl.DataFrame({"division": missing_model_divisions}),
+                how="cross",
+            )
+            .select("date", "fd_offset", "division", "lineage", "count")
+        )
+        model_df = pl.concat([model_df, zero_df])
 
     model_divisions = set(model_df["division"].unique())
     assert (
