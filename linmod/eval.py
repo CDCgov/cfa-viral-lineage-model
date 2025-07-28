@@ -7,6 +7,22 @@ from linmod.models import ForecastFrame
 from linmod.utils import pl_list_cycle, pl_norm
 
 
+def optional_filter(df: pl.LazyFrame | pl.DataFrame, filters: dict | None):
+    """
+    Filters the data based on a dict of column name to allowable values.
+    `None` is interpreted as all values allowed
+    """
+    if filters is None:
+        return df
+    else:
+        for col, vals in filters.items():
+            assert col in df.columns
+            if vals is not None:
+                df = df.filter(pl.col(col).is_in(vals))
+
+    return df
+
+
 def multinomial_count_sampler(
     n: ArrayLike,
     p: ArrayLike,
@@ -58,7 +74,7 @@ class ProportionsEvaluator:
 
         self.df = self.df.lazy()
 
-    def _mean_norm_per_division_day(self, p=1) -> pl.LazyFrame:
+    def _mean_norm_per_division_day(self, p=1):
         r"""
         The expected norm of proportion forecast error for each division-day.
 
@@ -74,7 +90,7 @@ class ProportionsEvaluator:
             .agg(mean_norm=pl.mean("norm"))
         )
 
-    def mean_norm(self, p=1) -> float:
+    def mean_norm(self, filters=None, p=1) -> float:
         r"""
         The expected norm of proportion forecast error, summed over all divisions
         and days.
@@ -84,6 +100,7 @@ class ProportionsEvaluator:
 
         return (
             self._mean_norm_per_division_day(p=p)
+            .pipe(optional_filter, filters=filters)
             .collect()
             .get_column("mean_norm")
             .sum()
@@ -169,7 +186,7 @@ class CountsEvaluator:
 
         self.df = self.df.lazy()
 
-    def _uncovered_per_lineage_division_day(self, alpha=0.05) -> pl.LazyFrame:
+    def _uncovered_per_lineage_division_day(self, alpha=0.05):
         """
         For each lineage in each division on each day, False if the observed count in the
         (1 - alpha) x 100% univariate prediction interval, True otherwise.
@@ -192,21 +209,24 @@ class CountsEvaluator:
             )
         )
 
-    def uncovered_proportion(self, alpha=0.05) -> float:
+    def uncovered_proportion(self, filters=None, alpha=0.05) -> float:
         """
         Proportion of all lineage observation counts on all division-days not covered
         by the (central) 1 - alpha prediction interval.
         """
         print(self._uncovered_per_lineage_division_day(alpha))
-        return (
+        prop = (
             self._uncovered_per_lineage_division_day(alpha)
+            .pipe(optional_filter, filters=filters)
             .collect()
             .get_column("uncovered")
             .cast(pl.Int8)
             .mean()
         )
+        assert isinstance(prop, float)
+        return prop
 
-    def _mean_norm_per_division_day(self, p=1) -> pl.LazyFrame:
+    def _mean_norm_per_division_day(self, p=1):
         r"""
         The expected norm of count forecast error for each division-day.
 
@@ -222,7 +242,7 @@ class CountsEvaluator:
             .agg(mean_norm=pl.mean("norm"))
         )
 
-    def mean_norm(self, p=1) -> float:
+    def mean_norm(self, filters=None, p=1) -> float:
         r"""
         The expected norm of count forecast error, summed over all divisions
         and days.
@@ -232,12 +252,13 @@ class CountsEvaluator:
 
         return (
             self._mean_norm_per_division_day(p=p)
+            .pipe(optional_filter, filters=filters)
             .collect()
             .get_column("mean_norm")
             .sum()
         )
 
-    def _energy_score_per_division_day(self, p=2) -> pl.LazyFrame:
+    def _energy_score_per_division_day(self, p=2):
         r"""
         Monte Carlo approximation to the energy score (multivariate generalization of
         CRPS) of count forecasts for each division-day.
@@ -272,7 +293,7 @@ class CountsEvaluator:
             )
         )
 
-    def energy_score(self, p=2) -> float:
+    def energy_score(self, filters=None, p=2) -> float:
         r"""
         The energy score of count forecasts, summed over all divisions and days.
 
@@ -283,6 +304,7 @@ class CountsEvaluator:
         """
         return (
             self._energy_score_per_division_day(p=p)
+            .pipe(optional_filter, filters=filters)
             .collect()
             .get_column("energy_score")
             .sum()
