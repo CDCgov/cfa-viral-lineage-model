@@ -49,7 +49,7 @@ DEFAULT_CONFIG = {
         # Where should the UShER data be looked for? (Strong filepath assumptions are made about folders within this)
         "usher_root": "https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/",
         # Should we use cladecombiner.AsOfAggregator to ensure lineages are only those known as of the forecast_date?
-        "use_cladecombiner_as_of": True,
+        "use_cladecombiner_as_of": False,
         # Where (directory) should the unprocessed (but decompressed) data be stored?
         "cache_dir": ".cache/",
         # Where (files) should the processed datasets for modeling and evaluation
@@ -578,36 +578,63 @@ def main(cfg: Optional[dict]):
         .sort("fd_offset", "division", "lineage")
     )
 
-    model_divisions = set(model_df["division"].unique())
-    missing_model_divisions = eval_divisions.difference(model_divisions)
-    # Make sure every division we want to evaluate gets modeled
+    assert set(model_df["lineage"].unique().to_list()) == set(
+        eval_df["lineage"].unique().to_list()
+    ), "Modeling and evaluation data have different lineages!"
+
+    missing_model_divisions = eval_divisions.difference(
+        model_df["division"].unique()
+    )
     if missing_model_divisions:
         print_message(
-            f" The following divisions have evaluation data but no modeling data (and are retained in the modeling dataset with all 0 counts): {missing_model_divisions}"
+            f" The following divisions have evaluation data but no modeling data: {missing_model_divisions}"
         )
-        lineages = model_df["lineage"].unique().to_list()
-        zero_df = (
-            pl.DataFrame({"lineage": lineages})
-            .with_columns(
-                count=pl.lit(0), date=pl.lit(forecast_date), fd_offset=0
-            )
-            .join(
-                pl.DataFrame({"division": missing_model_divisions}),
-                how="cross",
-            )
-            .select("date", "fd_offset", "division", "lineage", "count")
+
+    # Ensure every division is present on the forecast date, with 0 counts where no data is available
+    data_on_0 = (
+        model_df.filter(pl.col("fd_offset") == 0)["division"]
+        .unique()
+        .to_list()
+    )
+    pad_divisions = list(eval_divisions.difference(data_on_0))
+    lineages = model_df["lineage"].unique().to_list()
+    zero_df = (
+        pl.DataFrame({"lineage": lineages})
+        .with_columns(
+            count=pl.lit(0),
+            date=pl.lit(
+                date(
+                    config["data"]["forecast_date"]["year"],
+                    config["data"]["forecast_date"]["month"],
+                    config["data"]["forecast_date"]["day"],
+                )
+            ),
+            fd_offset=pl.lit(0),
         )
-        model_df = pl.concat([model_df, zero_df])
+        .cast({"count": pl.UInt32, "fd_offset": pl.Int64})
+        .join(
+            pl.DataFrame({"division": pad_divisions}),
+            how="cross",
+        )
+        .select("date", "fd_offset", "division", "lineage", "count")
+    )
+    model_df = pl.concat([model_df, zero_df])
 
     model_divisions = set(model_df["division"].unique())
     assert (
         model_divisions == eval_divisions
     ), "Evaluation and modeling data contain different divisions!"
 
-    assert (
-        model_df.shape
-        == eval_df.filter(pl.sum("count").over("date", "division") > 0).shape
-    ), "Modeling data is missing division-dates present in evaluation data!"
+    print(
+        model_df.filter(
+            pl.col("fd_offset") == 0,
+            pl.col("lineage") == model_df["lineage"].to_list()[0],
+        )
+    )
+    assert model_df.filter(
+        pl.col("fd_offset") == 0,
+        pl.col("lineage") == model_df["lineage"].to_list()[0],
+    ).shape[0] == len(eval_divisions), "Modeling data is incorrectly padded."
 
     all_data = model_df.join(
         eval_df,
