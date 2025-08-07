@@ -543,6 +543,16 @@ def main(cfg: Optional[dict]):
         .sort("fd_offset", "division", "lineage")
     )
 
+    eval_divisions = set(eval_df["division"].unique())
+    if (
+        not_included := set(config["data"]["included_divisions"]).difference(
+            eval_divisions
+        )
+    ) != set():
+        print_message(
+            f" The following divisions have no data and have been dropped from the evaluation dataset: {not_included}"
+        )
+
     eval_df.write_parquet(ValidPath(config["data"]["save_file"]["eval"]))
 
     print_message(" done.")
@@ -567,6 +577,68 @@ def main(cfg: Optional[dict]):
         # Sort to guarantee consistent output, since `.unique()` does not
         .sort("fd_offset", "division", "lineage")
     )
+
+    assert set(model_df["lineage"].unique().to_list()) == set(
+        eval_df["lineage"].unique().to_list()
+    ), "Modeling and evaluation data have different lineages!"
+
+    missing_model_divisions = eval_divisions.difference(
+        model_df["division"].unique()
+    )
+    if missing_model_divisions:
+        print_message(
+            f" The following divisions have evaluation data but no modeling data: {missing_model_divisions}"
+        )
+
+    # Ensure every division is present on the forecast date, with 0 counts where no data is available
+    data_on_0 = (
+        model_df.filter(pl.col("fd_offset") == 0)["division"]
+        .unique()
+        .to_list()
+    )
+    pad_divisions = list(eval_divisions.difference(data_on_0))
+    lineages = model_df["lineage"].unique().to_list()
+    zero_df = (
+        pl.DataFrame({"lineage": lineages})
+        .with_columns(
+            count=pl.lit(0),
+            date=pl.lit(
+                date(
+                    config["data"]["forecast_date"]["year"],
+                    config["data"]["forecast_date"]["month"],
+                    config["data"]["forecast_date"]["day"],
+                )
+            ),
+            fd_offset=pl.lit(0),
+        )
+        .cast({"count": pl.UInt32, "fd_offset": pl.Int64})
+        .join(
+            pl.DataFrame({"division": pad_divisions}),
+            how="cross",
+        )
+        .select("date", "fd_offset", "division", "lineage", "count")
+    )
+    model_df = pl.concat([model_df, zero_df])
+
+    model_divisions = set(model_df["division"].unique())
+    assert (
+        model_divisions == eval_divisions
+    ), "Evaluation and modeling data contain different divisions!"
+
+    assert model_df.filter(
+        pl.col("fd_offset") == 0,
+        pl.col("lineage") == model_df["lineage"].to_list()[0],
+    ).shape[0] == len(eval_divisions), "Modeling data is incorrectly padded."
+
+    all_data = model_df.join(
+        eval_df,
+        on=["date", "fd_offset", "division", "lineage"],
+        how="full",
+        validate="1:1",
+    ).with_columns(eval_surplus=(pl.col("count_right") - pl.col("count")))
+    assert (
+        all_data["eval_surplus"] >= 0
+    ).all(), "Evaluation dataset must have at least as many sequences as modeling data"
 
     model_df.write_parquet(ValidPath(config["data"]["save_file"]["model"]))
 
