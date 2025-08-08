@@ -212,6 +212,11 @@ def test_uncoverage():
         ]
     )
 
-    evaluator = eval.CountsEvaluator(samples=None, data=None, all_counts=df)
-
+    evaluator = eval.CountsEvaluator(
+        samples=df.drop(["count_sampled", "count"]).with_columns(
+            phi=pl.lit(0.5)
+        ),
+        data=df.drop(["count_sampled", "sample_index"]).unique(),
+    )
+    evaluator.df = df.lazy()
     assert evaluator.uncovered_proportion(alpha=0.1) == 0.5

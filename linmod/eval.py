@@ -118,7 +118,6 @@ class CountsEvaluator:
         data: CountsFrame,
         count_sampler: str = "multinomial",
         seed: int | None = None,
-        all_counts: pl.DataFrame | pl.LazyFrame | None = None,
     ) -> None:
         r"""
         Evaluates count forecasts $\hat{Y}$ sampled from a specified observation model given model
@@ -126,23 +125,7 @@ class CountsEvaluator:
 
         `count_sampler` should be one of the keys in `CountsEvaluator._count_samplers`.
         `seed` is an optional random seed for the count sampler.
-        `all_counts` is an optional way to feed in a pre-merged dataframe of observed and predicted counts
         """
-
-        if all_counts is not None:
-            assert set(all_counts.columns).issuperset(
-                [
-                    "count",
-                    "count_sampled",
-                    "lineage",
-                    "date",
-                    "fd_offset",
-                    "division",
-                    "sample_index",
-                ]
-            )
-            self.df = all_counts.lazy()
-            return None
 
         assert count_sampler in type(self)._count_samplers, (
             f"Count sampler '{count_sampler}' not found. "
