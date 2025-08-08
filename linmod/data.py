@@ -49,7 +49,7 @@ DEFAULT_CONFIG = {
         # Where should the UShER data be looked for? (Strong filepath assumptions are made about folders within this)
         "usher_root": "https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/",
         # Should we use cladecombiner.AsOfAggregator to ensure lineages are only those known as of the forecast_date?
-        "use_cladecombiner_as_of": True,
+        "use_cladecombiner_as_of": False,
         # Where (directory) should the unprocessed (but decompressed) data be stored?
         "cache_dir": ".cache/",
         # Where (files) should the processed datasets for modeling and evaluation
