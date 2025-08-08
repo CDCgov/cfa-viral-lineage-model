@@ -169,7 +169,7 @@ class CountsEvaluator:
 
         self.df = self.df.lazy()
 
-    def _uncovered_per_lineage_division_day(self, alpha=0.05):
+    def _uncovered_per_lineage_division_day(self, alpha=0.11):
         """
         For each lineage in each division on each day, False if the observed count in the
         (1 - alpha) x 100% univariate prediction interval, True otherwise.
@@ -192,7 +192,7 @@ class CountsEvaluator:
             )
         )
 
-    def uncovered_proportion(self, filters=None, alpha=0.05) -> float:
+    def uncovered_proportion(self, filters=None, alpha=0.11) -> float:
         """
         Proportion of all lineage observation counts on all division-days not covered
         by the (central) 1 - alpha prediction interval.
