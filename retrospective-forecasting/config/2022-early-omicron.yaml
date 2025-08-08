@@ -67,6 +67,17 @@ evaluation:
   # Where (directory) should model scores and visualizations be stored?
   save_dir: out/eval/2022-early-omicron
 
+  # Each element of `filters` is a dictionary specifying filters for evaluation.
+  # Keys are columns in a ForecastFrame or CountsFrame, which will be filtered
+  # to only values in the dictionary values for that key (or null for no filter for that column).
+  # At least one filter must be specified, it may be null (to evaluate everything).
+  filters:
+    # Evaluate everything
+    everything: null
+    # Evaluate all lineages and divisions but only for the forecast date and period
+    forecast_days:
+      fd_offset: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+
   # How should forecasts be evaluated?
   metrics:
     - ProportionsEvaluator

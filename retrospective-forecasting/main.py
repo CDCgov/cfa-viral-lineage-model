@@ -206,25 +206,32 @@ with open(plot_script_file, "w") as plot_script:
                 **evaluator_args,
             )
 
-            for metric_name, metric_function in vars(type(evaluator)).items():
-                if metric_name.startswith("_"):
-                    continue
+            for filter_name, filter_set in config["evaluation"][
+                "filters"
+            ].items():
+                for metric_name, metric_function in vars(
+                    type(evaluator)
+                ).items():
+                    if metric_name.startswith("_"):
+                        continue
 
-                print_message(
-                    (
-                        f"Evaluating {model_name} model using "
-                        f"{evaluator_name}.{metric_name}..."
-                    ),
-                    end="",
-                )
-
-                scores.append(
-                    (
-                        f"{evaluator_name}.{metric_name}",
-                        model_name,
-                        metric_function(evaluator),
+                    print_message(
+                        (
+                            f"Evaluating {model_name} model using "
+                            f"{evaluator_name}.{metric_name} for "
+                            f"filter {filter_name}..."
+                        ),
+                        end="",
                     )
-                )
+
+                    scores.append(
+                        (
+                            f"{evaluator_name}.{metric_name}",
+                            filter_name,
+                            model_name,
+                            metric_function(evaluator, filters=filter_set),
+                        )
+                    )
 
                 print_message(" done.")
 
@@ -245,6 +252,6 @@ print_message("Success!")
 
 pl.DataFrame(
     scores,
-    schema=["Metric", "Model", "Score"],
+    schema=["Metric", "Subset", "Model", "Score"],
     orient="row",
 ).write_csv(eval_dir / "results.csv")
