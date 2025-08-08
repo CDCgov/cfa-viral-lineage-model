@@ -50,6 +50,8 @@ DEFAULT_CONFIG = {
         "usher_root": "https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/",
         # Should we use cladecombiner.AsOfAggregator to ensure lineages are only those known as of the forecast_date?
         "use_cladecombiner_as_of": True,
+        # Pre cladecombiner recoding of lineage names, as a {from : to} dict
+        "custom_relabelings": None,
         # Where (directory) should the unprocessed (but decompressed) data be stored?
         "cache_dir": ".cache/",
         # Where (files) should the processed datasets for modeling and evaluation
@@ -489,6 +491,14 @@ def main(cfg: Optional[dict]):
             full_df,
             usher_path=usher_cache_path,
             usher_lineage_from=config["data"]["usher_lineage_column_name"],
+        )
+
+    if config["data"]["custom_relabelings"] is not None:
+        print_message(
+            f"Relabeling lineages using map {config['data']['custom_relabelings']}."
+        )
+        full_df = full_df.with_columns(
+            pl.col("lineage").replace(config["data"]["custom_relabelings"])
         )
 
     if config["data"]["use_cladecombiner_as_of"]:
