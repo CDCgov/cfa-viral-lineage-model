@@ -76,7 +76,7 @@ evaluation:
     everything: null
     # Evaluate all lineages and divisions but only for the forecast date and period
     forecast_days:
-      fd_offset: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+      fd_offset: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 
   # How should forecasts be evaluated?
   metrics:
