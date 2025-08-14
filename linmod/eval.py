@@ -16,7 +16,7 @@ def optional_filter(df: pl.LazyFrame | pl.DataFrame, filters: dict | None):
         return df
     else:
         for col, vals in filters.items():
-            assert col in df.columns
+            assert col in df.lazy().collect_schema().names()
             if vals is not None:
                 df = df.filter(pl.col(col).is_in(vals))
 
@@ -197,7 +197,6 @@ class CountsEvaluator:
         Proportion of all lineage observation counts on all division-days not covered
         by the (central) 1 - alpha prediction interval.
         """
-        print(self._uncovered_per_lineage_division_day(alpha))
         prop = (
             self._uncovered_per_lineage_division_day(alpha)
             .pipe(optional_filter, filters=filters)
