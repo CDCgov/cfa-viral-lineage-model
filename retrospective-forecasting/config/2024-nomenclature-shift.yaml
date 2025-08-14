@@ -27,6 +27,9 @@ data:
   # UShER recoding will use sequences from forecast_date + datetime.timedelta(days=usher_lag)
   usher_lag: 168
 
+  # Account for discrepancy between cladecombiner's as-of aggregation and recombinant handling
+  custom_relabelings: {"24F" : "recombinant"}
+
 forecasting:
   # Where (directory) should model output and visualizations be stored?
   save_dir: out/forecasts/2024-nomenclature-shift/
