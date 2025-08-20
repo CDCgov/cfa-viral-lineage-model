@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 
+import dendropy
 import jax.numpy as jnp
 import numpy as np
 import numpyro
@@ -128,6 +130,152 @@ class HierarchicalDivisionsModel(MultinomialModel):
         ]
 
     def numpyro_model(self):
+        sigma_beta_0 = 1.0
+        sigma_beta_1 = 0.25
+
+        sigma_global_beta_0 = jnp.sqrt(self.pool_beta_0 * sigma_beta_0)
+        sigma_global_beta_1 = jnp.sqrt(self.pool_beta_1 * sigma_beta_1)
+
+        sigma_local_beta_0 = jnp.sqrt((1.0 - self.pool_beta_0) * sigma_beta_0)
+        sigma_local_beta_1 = jnp.sqrt((1.0 - self.pool_beta_1) * sigma_beta_1)
+
+        z_mu_beta_0 = numpyro.sample(
+            "z_mu_beta_0", dist.Normal(0, 1), sample_shape=(self.num_lineages,)
+        )
+
+        z_mu_beta_1 = numpyro.sample(
+            "z_mu_beta_1", dist.Normal(0, 1), sample_shape=(self.num_lineages,)
+        )
+
+        mu_beta_0 = numpyro.deterministic(
+            "mu_beta_0", z_mu_beta_0 * sigma_global_beta_0
+        )
+        mu_beta_1 = numpyro.deterministic(
+            "mu_beta_1", z_mu_beta_1 * sigma_global_beta_1
+        )
+
+        v_z_0 = []
+        v_z_1 = []
+
+        for i in range(np.unique(self.divisions).size):
+            z_0 = numpyro.sample(
+                f"z_0_{i}",
+                dist.Normal(0.0, 1.0),
+                sample_shape=(self.num_lineages,),
+            )
+
+            z_1 = numpyro.sample(
+                f"z_1_{i}",
+                dist.Normal(0.0, 1.0),
+                sample_shape=(self.num_lineages,),
+            )
+
+            v_z_0.append(z_0)
+            v_z_1.append(z_1)
+
+        beta_0 = numpyro.deterministic(
+            "beta_0",
+            mu_beta_0 + (sigma_local_beta_0 * jnp.column_stack(v_z_0)).T,
+        )
+
+        beta_1 = numpyro.deterministic(
+            "beta_1",
+            mu_beta_1 + (sigma_local_beta_1 * jnp.column_stack(v_z_1)).T,
+        )
+
+        likelihood = multinomial_likelihood(
+            beta_0, beta_1, self.divisions, self.time, self.N
+        )
+
+        # Y[i, l] is the count of lineage l for observation i
+        numpyro.sample("Y", likelihood, obs=self.counts)
+
+    def create_forecasts(self, mcmc, fd_offsets) -> pl.DataFrame:
+        parameter_samples = (
+            expand_grid(
+                chain=np.arange(mcmc.num_chains),
+                iteration=np.arange(mcmc.num_samples // mcmc.thinning),
+                division=self.division_names,
+                lineage=self.lineage_names,
+            )
+            .with_columns(
+                beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
+                beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
+                sample_index=pl.col("iteration")
+                + pl.col("chain") * (mcmc.num_samples // mcmc.thinning)
+                + 1,
+            )
+            .drop("chain", "iteration")
+        )
+
+        return ForecastFrame(
+            expand_grid(
+                sample_index=parameter_samples["sample_index"].unique(),
+                fd_offset=fd_offsets,
+            )
+            .join(parameter_samples, on="sample_index")
+            .with_columns(
+                phi=pl_softmax(
+                    pl.col("beta_0") + pl.col("beta_1") * pl.col("fd_offset"),
+                ).over("sample_index", "division", "fd_offset")
+            )
+            .drop("beta_0", "beta_1")
+        )
+
+
+class PhyloCorrelatedHierarchicalDivisionsModel(HierarchicalDivisionsModel):
+    """
+    As HierarchicalDivisions but with phylogenetic correlations in the mu_beta_1 terms.
+    """
+
+    def __init__(
+        self,
+        data: pl.DataFrame,
+        tree: dendropy.Tree,
+        N: pl.Series | None = None,
+        num_lineages: int | None = None,
+        num_divisions: int | None = None,
+        pool_intercepts: float = 0.5,
+        pool_slopes: float = 0.75,
+    ):
+        super().__init__(
+            data, N, num_lineages, num_divisions, pool_intercepts, pool_slopes
+        )
+        self.phylo_vcv = PhyloCorrelatedHierarchicalDivisionsModel.tree_to_vcv(
+            tree, self.lineage_names
+        )
+
+    @staticmethod
+    def tree_to_vcv(tree: dendropy.Tree, lineages: Sequence[str]):
+        n_lineages = len(lineages)
+        has_other = "other" in lineages
+        assert len(tree) == len(lineages) - (1 if has_other else 0)
+        _ = np.zeros(
+            (
+                n_lineages,
+                n_lineages,
+            )
+        )
+
+        # Use tree.node_distance_matrix() to get a distance matrix of nodes
+        # Use NDM.distance(leaf node, tree root) to get variances
+        # Use NDM.mrca() to get the MRCA of any two taxa, and then NDM.distance(mrca, root) to get covariances
+        # >>> dm.distance(tree.leaf_nodes()[0], tree.leaf_nodes()[10], is_weighted_edge_distances=False)
+        # 13
+        # >>> dm.distance(tree.leaf_nodes()[0], tree.leaf_nodes()[1], is_weighted_edge_distances=False)
+        # 2
+        # >>> dm.distance(tree.leaf_nodes()[0], tree.seed_node, is_weighted_edge_distances=False)
+
+        # crude but gets the job done
+        for leaf_i in tree.leaf_nodes():
+            if leaf_i == "other":
+                continue
+
+        # normalize to covariance matrix
+
+    def numpyro_model(self):
+        # To heat the covariance matrix, use p * CorMat + (1 - p) diag(ones)
+        # Apply to: deviations per state (probably?), overall mean (maybe?)
         sigma_beta_0 = 1.0
         sigma_beta_1 = 0.25
 
