@@ -19,3 +19,5 @@ Changes to analyses are made on a config by config basis.
 
 # Data provenance
 The population size data in are the 2023 estimates from [NST-EST2023-POP](https://www2.census.gov/programs-surveys/popest/tables/2020-2023/state/totals/NST-EST2023-POP.xlsx]).
+
+Vintaged Nextstrain and UShER data is available compressed from <https://zenodo.org/records/16942110>.
