@@ -4,7 +4,7 @@ from numpy.typing import ArrayLike
 
 from linmod.data import CountsFrame
 from linmod.models import ForecastFrame
-from linmod.utils import pl_list_cycle, pl_norm
+from linmod.utils import pl_norm
 
 
 def optional_filter(df: pl.LazyFrame | pl.DataFrame, filters: dict | None):
@@ -147,7 +147,13 @@ class CountsEvaluator:
                 how="left",
             )
             .group_by("date", "fd_offset", "division", "sample_index")
-            .agg(pl.col("lineage"), pl.col("phi_sampled"), pl.col("count"))
+            .agg(
+                pl.col("lineage"),
+                pl.col("phi_sampled"),
+                pl.col("count"),
+                chain=pl.col("chain").min(),
+                iteration=pl.col("iteration").min(),
+            )
             .with_columns(
                 count_sampled=pl.struct(
                     pl.col("phi_sampled"), N=pl.col("count").list.sum()
@@ -248,17 +254,57 @@ class CountsEvaluator:
         $E[ || \hat{Y}_{tg} - Y_{tg} ||_p ] - \frac{1}{2} E[ || \hat{Y}_{tg} - \hat{Y}_{tg}' ||_p ]$
 
         Returns a data frame with columns `(division, fd_offset, energy_score)`.
+
+        This function depends upon having multiple _independent_ MCMC chains, which
+        it uses as the "replicate" data Y' when computing the second expectation.
         """
+        schema = self.df.collect_schema()
+        cols = schema.names()
+
+        assert (
+            "chain" in cols
+        ), "Cannot compute Energy Score without chain IDs."
+        assert (
+            "iteration" in cols
+        ), "Cannot compute Energy Score without within-chain iteration IDs."
+
+        chain_index = self.df.select("chain").collect()["chain"]
+        chains = sorted(chain_index.unique().to_list())
+        nchains_2 = len(chains) // 2
+        chains_left = chains[:nchains_2]
+        chains_right = chains[nchains_2 : (nchains_2 * 2)]
+        chain_rename = {
+            right: left for left, right in zip(chains_left, chains_right)
+        }
+
+        df = self.df.filter(pl.col("chain").is_in(chains_left)).join(
+            self.df.filter(pl.col("chain").is_in(chains_right))
+            .with_columns(
+                pl.col("count_sampled").alias("replicate"),
+                pl.col("chain").replace_strict(chain_rename),
+            )
+            .drop(["sample_index", "count", "count_sampled"]),
+            on=[
+                "date",
+                "fd_offset",
+                "division",
+                "lineage",
+                "chain",
+                "iteration",
+            ],
+            how="inner",
+            validate="1:1",
+        )
 
         return (
             # First, we will gather the values of count' we will use for (count-count')
-            self.df.group_by("date", "fd_offset", "division", "lineage")
+            df.group_by("date", "fd_offset", "division", "lineage")
             .agg(
                 pl.col("sample_index"),
                 pl.col("count"),
                 pl.col("count_sampled"),
+                pl.col("replicate"),
             )
-            .with_columns(replicate=pl_list_cycle(pl.col("count_sampled"), 1))
             .explode("sample_index", "count", "count_sampled", "replicate")
             # Now we can compute the score
             .group_by("fd_offset", "division", "sample_index")
