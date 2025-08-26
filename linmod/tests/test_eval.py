@@ -196,8 +196,6 @@ def test_uncoverage():
                     "count": [10] * 10,
                     "sample_index": list(range(10)),
                     "count_sampled": list(range(5, 15)),
-                    "iteration": list(range(5)) * 2,
-                    "chain": [0] * 5 + [1] * 5,
                 }
             ),
             pl.DataFrame(
@@ -209,8 +207,6 @@ def test_uncoverage():
                     "count": [5] * 10,
                     "sample_index": list(range(10)),
                     "count_sampled": list(range(8, 18)),
-                    "iteration": list(range(5)) * 2,
-                    "chain": [0] * 5 + [1] * 5,
                 }
             ),
         ]
