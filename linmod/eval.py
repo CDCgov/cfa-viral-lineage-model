@@ -140,19 +140,24 @@ class CountsEvaluator:
 
         rng = np.random.default_rng(seed)
 
+        cols = samples.collect_schema().names()
+        groups = ["date", "fd_offset", "division", "sample_index"] + (
+            ["chain", "iteration"]
+            if (("chain" in cols) and ("iteration" in cols))
+            else []
+        )
+
         self.df = (
             data.join(
                 samples.rename({"phi": "phi_sampled"}),
                 on=("fd_offset", "division", "lineage"),
                 how="left",
             )
-            .group_by("date", "fd_offset", "division", "sample_index")
+            .group_by(groups)
             .agg(
                 pl.col("lineage"),
                 pl.col("phi_sampled"),
                 pl.col("count"),
-                chain=pl.col("chain").min(),
-                iteration=pl.col("iteration").min(),
             )
             .with_columns(
                 count_sampled=pl.struct(
@@ -258,8 +263,7 @@ class CountsEvaluator:
         This function depends upon having multiple _independent_ MCMC chains, which
         it uses as the "replicate" data Y' when computing the second expectation.
         """
-        schema = self.df.collect_schema()
-        cols = schema.names()
+        cols = self.df.collect_schema().names()
 
         assert (
             "chain" in cols
