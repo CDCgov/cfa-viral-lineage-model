@@ -26,7 +26,7 @@ def optional_filter(df: pl.LazyFrame | pl.DataFrame, filters: dict | None):
 def multinomial_count_sampler(
     n: ArrayLike,
     p: ArrayLike,
-    rng: np.random.Generator,
+    seed: int,
 ) -> np.ndarray:
     """
     Samples from a `multinomial(n, p)` distribution.
@@ -36,7 +36,7 @@ def multinomial_count_sampler(
     - `n` is a vector, `p` is a matrix with rows corresponding to entries in `n`
     """
 
-    return rng.multinomial(n, p)
+    return np.random.default_rng(seed).multinomial(n, p)
 
 
 class ProportionsEvaluator:
@@ -138,33 +138,36 @@ class CountsEvaluator:
             == data["lineage"].unique().sort()
         ).all()
 
-        rng = np.random.default_rng(seed)
-
         cols = samples.collect_schema().names()
         groups = ["date", "fd_offset", "division", "sample_index"] + (
             ["chain", "iteration"]
             if (("chain" in cols) and ("iteration" in cols))
             else []
         )
-
         self.df = (
             data.join(
                 samples.rename({"phi": "phi_sampled"}),
                 on=("fd_offset", "division", "lineage"),
                 how="left",
             )
+            .with_columns(seed=(seed + pl.col("sample_index")))
             .group_by(groups)
             .agg(
                 pl.col("lineage"),
                 pl.col("phi_sampled"),
                 pl.col("count"),
+                seed=pl.col("seed").min(),
             )
             .with_columns(
                 count_sampled=pl.struct(
-                    pl.col("phi_sampled"), N=pl.col("count").list.sum()
+                    pl.col("phi_sampled"),
+                    N=pl.col("count").list.sum(),
+                    seed=pl.col("seed").min(),
                 ).map_elements(
                     lambda struct: list(
-                        count_sampler(struct["N"], struct["phi_sampled"], rng)
+                        count_sampler(
+                            struct["N"], struct["phi_sampled"], struct["seed"]
+                        )
                     ),
                     return_dtype=pl.List(pl.Int64),
                 )
