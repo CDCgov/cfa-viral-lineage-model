@@ -2,7 +2,7 @@
 
 This folder contains a retrospective forecasting pipeline, complete with config files setup for retrospective analyses of 2022-02-14, 2023-06-01, and 2024-10-01.
 By default, when run, it will download all data needed from [Nextstrain](https://docs.nextstrain.org/projects/ncov/en/latest/reference/remote_inputs.html) and [UShER](https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2) and create a local `.cache` folder to house these.
-Vintaged data is available compressed from <https://zenodo.org/records/16942110> (if using, download, uncompress, and copy the `.cache` folder produced into `retrospective-forecasting/`)
+Vintaged data is available compressed from <https://zenodo.org/records/16942110> (if using vintaged data, download the archive, uncompress it, resulting in a folder called `.cache`, and copy the entire `.cache` folder into the top level of `retrospective-forecasting/`)
 
 
 To run the retrospective analyses, you will first want to make sure that the package is ready to go and all dependencies are available.
