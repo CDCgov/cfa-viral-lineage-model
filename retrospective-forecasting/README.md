@@ -5,14 +5,12 @@ By default, when run, it will download all data needed from [Nextstrain](https:/
 Vintaged data is available compressed from <https://zenodo.org/records/16942110> (if using vintaged data, download the archive, uncompress it, resulting in a folder called `.cache`, and copy the entire `.cache` folder into the top level of `retrospective-forecasting/`)
 
 
-To run the retrospective analyses, you will first want to make sure that the package is ready to go and all dependencies are available.
+To run the retrospective analyses, you will first want to make sure that the package is ready to go and all dependencies are available:
+
 ```
-poetry install
-```
-Then
-```
+uv sync
 cd retrospective-forecasting
-poetry run ./run_all.sh
+uv run ./run_all.sh
 ```
 
 ## Details and customization
