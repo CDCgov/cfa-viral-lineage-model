@@ -380,3 +380,6 @@ docs/site/
 
 # macOS
 .DS_Store
+
+# retrospective forecasting creates .sh files
+*.sh
