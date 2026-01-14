@@ -31,26 +31,25 @@ def multinomial_count_sampler(
     """
     Samples from multinomial for multiple rows in one call.
 
-    Ns: 1-D array-like of total counts for each draw.
-    Ps: 2-D array-like where each row is a probability vector for that draw.
+    n: 1-D array-like of total counts for each draw.
+    p: 2-D array-like where each row is a probability vector for that draw.
     rng: a numpy.random.Generator used for reproducible sampling.
 
     Returns an (n_rows, n_lineages) ndarray of integer counts.
     """
 
-    p_arr = np.asarray(p, dtype=float)
-    n_arr = np.asarray(n, dtype=int)
+    assert isinstance(n, np.ndarray)
+    assert isinstance(p, np.ndarray)
 
-    # Ensure shapes are compatible
-    if p_arr.ndim == 1:
-        p_arr = p_arr[None, :]
+    assert n.ndim == 1
+    assert p.ndim == 2
 
-    if p_arr.shape[0] != n_arr.shape[0]:
+    if p.shape[0] != n.shape[0]:
         raise ValueError(
-            "Length of Ns must match number of probability rows in Ps"
+            "Length of n must match number of probability vectors in p"
         )
 
-    draws = rng.multinomial(n_arr, p_arr)
+    draws = rng.multinomial(n, p)
 
     return draws
 
@@ -175,17 +174,13 @@ class CountsEvaluator:
 
         rng = np.random.default_rng(seed)
 
-        phi_lists = grouped["phi_sampled"].to_list()
-        count_lists = grouped["count"].to_list()
+        count_tots = np.sum(np.array(grouped["count"].to_list()), axis=1)
 
-        Ps = np.asarray(phi_lists, dtype=float)
-        Ns = np.asarray([int(sum(c)) for c in count_lists], dtype=int)
+        sampled_array = multinomial_count_sampler(
+            count_tots, np.array(grouped["phi_sampled"].to_list()), rng
+        )
 
-        sampled_array = multinomial_count_sampler(Ns, Ps, rng)
-
-        # Convert to list-of-lists and attach back to the DataFrame as a single column
-        sampled_lists = sampled_array.tolist()
-        grouped = grouped.with_columns(count_sampled=pl.Series(sampled_lists))
+        grouped = grouped.with_columns(count_sampled=pl.Series(sampled_array))
 
         # Now explode to long format analogous to previous pipeline
         df = grouped.explode(
