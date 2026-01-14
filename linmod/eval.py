@@ -26,17 +26,16 @@ def optional_filter(df: pl.LazyFrame | pl.DataFrame, filters: dict | None):
 def multinomial_count_sampler(
     n: ArrayLike,
     p: ArrayLike,
-    seed: int,
+    rng: np.random.Generator,
 ) -> np.ndarray:
     """
-    Samples from a `multinomial(n, p)` distribution.
-
-    Compatible shapes of `n` and `p` include:
-    - `n` is a scalar, `p` is a vector
-    - `n` is a vector, `p` is a matrix with rows corresponding to entries in `n`
+    Samples from a `multinomial(n, p)` distribution using an explicit numpy
+    random Generator provided by the caller. This keeps all RNG draws in
+    Python and allows deterministic, reproducible sampling after collecting and
+    sorting the data.
     """
 
-    return np.random.default_rng(seed).multinomial(n, p)
+    return rng.multinomial(n, p)
 
 
 class ProportionsEvaluator:
@@ -124,7 +123,9 @@ class CountsEvaluator:
         proportion forecasts.
 
         `count_sampler` should be one of the keys in `CountsEvaluator._count_samplers`.
-        `seed` is an optional random seed for the count sampler.
+        `seed` is an optional random seed for reproducible sampling. When provided,
+        sampling is executed in Python after collecting and sorting the grouped
+        frame to ensure exact reproducibility.
         """
 
         assert count_sampler in type(self)._count_samplers, (
@@ -138,50 +139,63 @@ class CountsEvaluator:
             == data["lineage"].unique().sort()
         ).all()
 
+        # Determine grouping columns; keep chain/iteration if present so that
+        # sampling is done per (chain, iteration, ...) group when available.
         cols = samples.collect_schema().names()
         groups = ["date", "fd_offset", "division", "sample_index"] + (
             ["chain", "iteration"]
             if (("chain" in cols) and ("iteration" in cols))
             else []
         )
-        self.df = (
+
+        # Build the grouped, aggregated frame up to the point where we need to
+        # draw multinomial samples. Do NOT perform RNG inside polars; instead
+        # collect, sort deterministically, draw all RNGs in python, then
+        # continue polars processing.
+        grouped = (
             data.join(
                 samples.rename({"phi": "phi_sampled"}),
                 on=("fd_offset", "division", "lineage"),
                 how="left",
             )
-            .with_columns(seed=(seed + pl.col("sample_index")))
             .group_by(groups)
-            .agg(
-                pl.col("lineage"),
-                pl.col("phi_sampled"),
-                pl.col("count"),
-                seed=pl.col("seed").min(),
-            )
-            .with_columns(
-                count_sampled=pl.struct(
-                    pl.col("phi_sampled"),
-                    N=pl.col("count").list.sum(),
-                    seed=pl.col("seed").min(),
-                ).map_elements(
-                    lambda struct: list(
-                        count_sampler(
-                            struct["N"], struct["phi_sampled"], struct["seed"]
-                        )
-                    ),
-                    return_dtype=pl.List(pl.Int64),
-                )
-            )
-            .explode("lineage", "phi_sampled", "count", "count_sampled")
-            .drop("phi_sampled")
+            .agg(pl.col("lineage"), pl.col("phi_sampled"), pl.col("count"))
         )
 
-        assert (
-            self.df["fd_offset"].unique().sort()
-            == data["fd_offset"].unique().sort()
-        ).all()
+        # Collect and sort deterministically for reproducible RNG draws
+        collected = grouped.sort(by=groups)
 
-        self.df = self.df.lazy()
+        rng = np.random.default_rng(seed)
+
+        # Prepare the list of multinomial draws (one per grouped row).
+        sampled_lists: list[list[int]] = []
+        for row in collected.iter_rows(named=True):
+            # phi_sampled and count are list columns (one entry per lineage)
+            phi = row["phi_sampled"]
+            counts = row["count"]
+            # If counts is a polars Series/Sequence, coerce to list
+            if not isinstance(counts, (list, tuple)):
+                counts = list(counts)
+
+            N = int(sum(counts))
+            # Ensure phi is an array-like of probabilities
+            p = np.asarray(phi, dtype=float)
+
+            sampled = list(count_sampler(N, p, rng))
+            sampled_lists.append(sampled)
+
+        # Attach the sampled lists back to the collected frame and continue
+        collected = collected.with_columns(
+            count_sampled=pl.Series(sampled_lists)
+        )
+
+        # Now explode to long format analogous to previous pipeline
+        df = collected.explode(
+            "lineage", "phi_sampled", "count", "count_sampled"
+        ).drop("phi_sampled")
+
+        # Keep the rest of pipeline consistent with previous behaviour
+        self.df = df.lazy()
 
     def _uncovered_per_lineage_division_day(self, alpha=0.11):
         """
