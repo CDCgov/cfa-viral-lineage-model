@@ -156,13 +156,13 @@ class CountsEvaluator:
         )
 
         # Sort deterministically for reproducible RNG draws
-        collected = grouped.sort(by=cols)
+        grouped = grouped.sort(by=groups)
 
         rng = np.random.default_rng(seed)
 
         # Prepare the list of multinomial draws (one per grouped row).
         sampled_lists: list[list[int]] = []
-        for row in collected.iter_rows(named=True):
+        for row in grouped.iter_rows(named=True):
             # phi_sampled and count are list columns (one entry per lineage)
             phi = row["phi_sampled"]
             counts = row["count"]
@@ -177,13 +177,11 @@ class CountsEvaluator:
             sampled = list(count_sampler(N, p, rng))
             sampled_lists.append(sampled)
 
-        # Attach the sampled lists back to the collected frame and continue
-        collected = collected.with_columns(
-            count_sampled=pl.Series(sampled_lists)
-        )
+        # Attach the sampled lists back to the grouped frame and continue
+        grouped = grouped.with_columns(count_sampled=pl.Series(sampled_lists))
 
         # Now explode to long format analogous to previous pipeline
-        df = collected.explode(
+        df = grouped.explode(
             "lineage", "phi_sampled", "count", "count_sampled"
         ).drop("phi_sampled")
 
