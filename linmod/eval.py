@@ -29,14 +29,30 @@ def multinomial_count_sampler(
     rng: np.random.Generator,
 ) -> np.ndarray:
     """
-    Samples from a `multinomial(n, p)` distribution.
+    Samples from multinomial for multiple rows in one call.
 
-    Compatible shapes of `n` and `p` include:
-    - `n` is a scalar, `p` is a vector
-    - `n` is a vector, `p` is a matrix with rows corresponding to entries in `n`
+    Ns: 1-D array-like of total counts for each draw.
+    Ps: 2-D array-like where each row is a probability vector for that draw.
+    rng: a numpy.random.Generator used for reproducible sampling.
+
+    Returns an (n_rows, n_lineages) ndarray of integer counts.
     """
 
-    return rng.multinomial(n, p)
+    p_arr = np.asarray(p, dtype=float)
+    n_arr = np.asarray(n, dtype=int)
+
+    # Ensure shapes are compatible
+    if p_arr.ndim == 1:
+        p_arr = p_arr[None, :]
+
+    if p_arr.shape[0] != n_arr.shape[0]:
+        raise ValueError(
+            "Length of Ns must match number of probability rows in Ps"
+        )
+
+    draws = rng.multinomial(n_arr, p_arr)
+
+    return draws
 
 
 class ProportionsEvaluator:
@@ -131,7 +147,6 @@ class CountsEvaluator:
             f"Count sampler '{count_sampler}' not found. "
             f"Available samplers: {', '.join(type(self)._count_samplers)}"
         )
-        count_sampler = type(self)._count_samplers[count_sampler]
 
         assert (
             samples["lineage"].unique().sort()
@@ -160,24 +175,16 @@ class CountsEvaluator:
 
         rng = np.random.default_rng(seed)
 
-        # Prepare the list of multinomial draws (one per grouped row).
-        sampled_lists: list[list[int]] = []
-        for row in grouped.iter_rows(named=True):
-            # phi_sampled and count are list columns (one entry per lineage)
-            phi = row["phi_sampled"]
-            counts = row["count"]
-            # If counts is a polars Series/Sequence, coerce to list
-            if not isinstance(counts, (list, tuple)):
-                counts = list(counts)
+        phi_lists = grouped["phi_sampled"].to_list()
+        count_lists = grouped["count"].to_list()
 
-            N = int(sum(counts))
-            # Ensure phi is an array-like of probabilities
-            p = np.asarray(phi, dtype=float)
+        Ps = np.asarray(phi_lists, dtype=float)
+        Ns = np.asarray([int(sum(c)) for c in count_lists], dtype=int)
 
-            sampled = list(count_sampler(N, p, rng))
-            sampled_lists.append(sampled)
+        sampled_array = multinomial_count_sampler(Ns, Ps, rng)
 
-        # Attach the sampled lists back to the grouped frame and continue
+        # Convert to list-of-lists and attach back to the DataFrame as a single column
+        sampled_lists = sampled_array.tolist()
         grouped = grouped.with_columns(count_sampled=pl.Series(sampled_lists))
 
         # Now explode to long format analogous to previous pipeline
