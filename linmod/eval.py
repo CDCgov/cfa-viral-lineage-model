@@ -131,7 +131,7 @@ class CountsEvaluator:
         self,
         samples: ForecastFrame,
         data: CountsFrame,
-        count_sampler: str = "multinomial",
+        count_sampler_str: str = "multinomial",
         seed: int | None = None,
     ) -> None:
         r"""
@@ -142,10 +142,11 @@ class CountsEvaluator:
         `seed` is an optional random seed for the count sampler.
         """
 
-        assert count_sampler in type(self)._count_samplers, (
-            f"Count sampler '{count_sampler}' not found. "
+        assert count_sampler_str in type(self)._count_samplers, (
+            f"Count sampler '{count_sampler_str}' not found. "
             f"Available samplers: {', '.join(type(self)._count_samplers)}"
         )
+        count_sampler = type(self)._count_samplers[count_sampler_str]
 
         assert (
             samples["lineage"].unique().sort()
@@ -176,7 +177,7 @@ class CountsEvaluator:
 
         count_tots = np.sum(np.array(grouped["count"].to_list()), axis=1)
 
-        sampled_array = multinomial_count_sampler(
+        sampled_array = count_sampler(
             count_tots, np.array(grouped["phi_sampled"].to_list()), rng
         )
 
