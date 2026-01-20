@@ -29,7 +29,7 @@ dev = ["pytest>=8.2.2,<9"]
 [tool.uv]
 
 [tool.uv.sources]
-cladecombiner = { git = "https://github.com/CDCGov/cladecombiner", rev = "afm-ns" }
+cladecombiner = { git = "https://github.com/CDCGov/cladecombiner" }
 
 [build-system]
 requires = ["hatchling"]
