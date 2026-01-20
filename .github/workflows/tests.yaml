@@ -10,49 +10,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Set up poetry
-      run: |
-        pip install poetry
+      - name: Set up python
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
-    - name: Set up python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-        cache: 'poetry'
-
-    - name: Install package dependencies
-      run: |
-        poetry install
-
-    - name: Run pytest
-      run: |
-        poetry run pytest -v
+      - name: Run pytest
+        run: |
+          uv sync --frozen
+          uv run pytest -v
 
   e2e-test:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Set up poetry
-      run: |
-        pip install poetry
+      - name: Set up poetry
+        run: |
+          pip install poetry
 
-    - name: Set up python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-        cache: 'poetry'
+      - name: Set up python
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
 
-    - name: Install package dependencies
-      run: |
-        poetry install
-
-    - name: Run end-to-end test
-      working-directory: retrospective-forecasting/
-      run: |
-        poetry run bash test/run.sh
+      - name: Run end-to-end test
+        working-directory: retrospective-forecasting/
+        run: |
+          uv sync --frozen
+          uv run bash test/run.sh
