@@ -25,10 +25,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
-    "pre-commit>=4.5.1",
-    "pytest>=8.2.2,<9",
-]
+dev = ["pre-commit>=4.5.1", "pytest>=8.2.2,<9"]
 
 [tool.uv]
 
@@ -38,6 +35,3 @@ cladecombiner = { git = "https://github.com/CDCGov/cladecombiner" }
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-name = "linmod"
-version = "0.1.0"
-description = ""
