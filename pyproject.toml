@@ -3,6 +3,7 @@ name = "linmod"
 version = "0.1.0"
 description = ""
 authors = [
+    { name = "Thanasi Bakis", email = "abakis@uci.edu" },
     { name = "Andy Magee", email = "rzg0@cdc.gov" },
     { name = "Scott Olesen", email = "ulp7@cdc.gov" },
 ]
@@ -34,3 +35,6 @@ cladecombiner = { git = "https://github.com/CDCGov/cladecombiner" }
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+name = "linmod"
+version = "0.1.0"
+description = ""
