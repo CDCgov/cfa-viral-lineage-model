@@ -49,9 +49,7 @@ def multinomial_count_sampler(
             "Length of n must match number of probability vectors in p"
         )
 
-    draws = rng.multinomial(n, p)
-
-    return draws
+    return rng.multinomial(n, p)
 
 
 class ProportionsEvaluator:
@@ -116,7 +114,7 @@ class ProportionsEvaluator:
         return (
             self._mean_norm_per_division_day(p=p)
             .pipe(optional_filter, filters=filters)
-            .collect()
+            .pipe(_collect_if_lazy)
             .get_column("mean_norm")
             .sum()
         )
@@ -146,7 +144,7 @@ class CountsEvaluator:
             f"Count sampler '{count_sampler}' not found. "
             f"Available samplers: {', '.join(type(self)._count_samplers)}"
         )
-        count_sampler = type(self)._count_samplers[count_sampler]
+        sampler = type(self)._count_samplers[count_sampler]
 
         assert (
             samples["lineage"].unique().sort()
@@ -168,17 +166,16 @@ class CountsEvaluator:
             )
             .group_by(groups)
             .agg(pl.col("lineage"), pl.col("phi_sampled"), pl.col("count"))
+            # Sort deterministically for reproducible RNG draws
+            .sort(by=groups)
         )
-
-        # Sort deterministically for reproducible RNG draws
-        grouped = grouped.sort(by=groups)
 
         rng = np.random.default_rng(seed)
 
-        count_tots = np.sum(np.array(grouped["count"].to_list()), axis=1)
+        count_tots = np.sum(grouped["count"].to_numpy(), axis=1)
 
-        sampled_array = count_sampler(
-            count_tots, np.array(grouped["phi_sampled"].to_list()), rng
+        sampled_array = sampler(
+            count_tots, grouped["phi_sampled"].to_numpy(), rng
         )
 
         grouped = grouped.with_columns(count_sampled=pl.Series(sampled_array))
@@ -222,7 +219,7 @@ class CountsEvaluator:
         prop = (
             self._uncovered_per_lineage_division_day(alpha)
             .pipe(optional_filter, filters=filters)
-            .collect()
+            .pipe(_collect_if_lazy)
             .get_column("uncovered")
             .cast(pl.Int8)
             .mean()
@@ -257,7 +254,7 @@ class CountsEvaluator:
         return (
             self._mean_norm_per_division_day(p=p)
             .pipe(optional_filter, filters=filters)
-            .collect()
+            .pipe(_collect_if_lazy)
             .get_column("mean_norm")
             .sum()
         )
@@ -348,7 +345,18 @@ class CountsEvaluator:
         return (
             self._energy_score_per_division_day(p=p)
             .pipe(optional_filter, filters=filters)
-            .collect()
+            .pipe(_collect_if_lazy)
             .get_column("energy_score")
             .sum()
+        )
+
+
+def _collect_if_lazy(x: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame:
+    if isinstance(x, pl.DataFrame):
+        return x
+    elif isinstance(x, pl.LazyFrame):
+        return x.collect()
+    else:
+        raise ValueError(
+            f"{x} is of type {type(x)}, not DataFrame or LazyFrame"
         )
