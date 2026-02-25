@@ -26,17 +26,32 @@ def optional_filter(df: pl.LazyFrame | pl.DataFrame, filters: dict | None):
 def multinomial_count_sampler(
     n: ArrayLike,
     p: ArrayLike,
-    seed: int,
+    rng: np.random.Generator,
 ) -> np.ndarray:
     """
-    Samples from a `multinomial(n, p)` distribution.
+    Samples from multinomial for multiple rows in one call.
 
-    Compatible shapes of `n` and `p` include:
-    - `n` is a scalar, `p` is a vector
-    - `n` is a vector, `p` is a matrix with rows corresponding to entries in `n`
+    n: 1-D array-like of total counts for each draw.
+    p: 2-D array-like where each row is a probability vector for that draw.
+    rng: a numpy.random.Generator used for reproducible sampling.
+
+    Returns an (n_rows, n_lineages) ndarray of integer counts.
     """
 
-    return np.random.default_rng(seed).multinomial(n, p)
+    assert isinstance(n, np.ndarray)
+    assert isinstance(p, np.ndarray)
+
+    assert n.ndim == 1
+    assert p.ndim == 2
+
+    if p.shape[0] != n.shape[0]:
+        raise ValueError(
+            "Length of n must match number of probability vectors in p"
+        )
+
+    draws = rng.multinomial(n, p)
+
+    return draws
 
 
 class ProportionsEvaluator:
@@ -144,44 +159,37 @@ class CountsEvaluator:
             if (("chain" in cols) and ("iteration" in cols))
             else []
         )
-        self.df = (
+
+        grouped = (
             data.join(
                 samples.rename({"phi": "phi_sampled"}),
                 on=("fd_offset", "division", "lineage"),
                 how="left",
             )
-            .with_columns(seed=(seed + pl.col("sample_index")))
             .group_by(groups)
-            .agg(
-                pl.col("lineage"),
-                pl.col("phi_sampled"),
-                pl.col("count"),
-                seed=pl.col("seed").min(),
-            )
-            .with_columns(
-                count_sampled=pl.struct(
-                    pl.col("phi_sampled"),
-                    N=pl.col("count").list.sum(),
-                    seed=pl.col("seed").min(),
-                ).map_elements(
-                    lambda struct: list(
-                        count_sampler(
-                            struct["N"], struct["phi_sampled"], struct["seed"]
-                        )
-                    ),
-                    return_dtype=pl.List(pl.Int64),
-                )
-            )
-            .explode("lineage", "phi_sampled", "count", "count_sampled")
-            .drop("phi_sampled")
+            .agg(pl.col("lineage"), pl.col("phi_sampled"), pl.col("count"))
         )
 
-        assert (
-            self.df["fd_offset"].unique().sort()
-            == data["fd_offset"].unique().sort()
-        ).all()
+        # Sort deterministically for reproducible RNG draws
+        grouped = grouped.sort(by=groups)
 
-        self.df = self.df.lazy()
+        rng = np.random.default_rng(seed)
+
+        count_tots = np.sum(np.array(grouped["count"].to_list()), axis=1)
+
+        sampled_array = count_sampler(
+            count_tots, np.array(grouped["phi_sampled"].to_list()), rng
+        )
+
+        grouped = grouped.with_columns(count_sampled=pl.Series(sampled_array))
+
+        # Now explode to long format analogous to previous pipeline
+        df = grouped.explode(
+            "lineage", "phi_sampled", "count", "count_sampled"
+        ).drop("phi_sampled")
+
+        # Keep the rest of pipeline consistent with previous behaviour
+        self.df = df.lazy()
 
     def _uncovered_per_lineage_division_day(self, alpha=0.11):
         """
