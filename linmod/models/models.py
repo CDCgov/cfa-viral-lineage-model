@@ -189,21 +189,17 @@ class HierarchicalDivisionsModel(MultinomialModel):
         numpyro.sample("Y", likelihood, obs=self.counts)
 
     def create_forecasts(self, mcmc, fd_offsets) -> pl.DataFrame:
-        parameter_samples = (
-            expand_grid(
-                chain=np.arange(mcmc.num_chains),
-                iteration=np.arange(mcmc.num_samples // mcmc.thinning),
-                division=self.division_names,
-                lineage=self.lineage_names,
-            )
-            .with_columns(
-                beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
-                beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
-                sample_index=pl.col("iteration")
-                + pl.col("chain") * (mcmc.num_samples // mcmc.thinning)
-                + 1,
-            )
-            .drop("chain", "iteration")
+        parameter_samples = expand_grid(
+            chain=np.arange(mcmc.num_chains),
+            iteration=np.arange(mcmc.num_samples // mcmc.thinning),
+            division=self.division_names,
+            lineage=self.lineage_names,
+        ).with_columns(
+            beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
+            beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
+            sample_index=pl.col("iteration")
+            + pl.col("chain") * (mcmc.num_samples // mcmc.thinning)
+            + 1,
         )
 
         return ForecastFrame(
@@ -403,21 +399,17 @@ class IndependentDivisionsModel(MultinomialModel):
         numpyro.sample("Y", likelihood, obs=self.counts)
 
     def create_forecasts(self, mcmc, fd_offsets) -> pl.DataFrame:
-        parameter_samples = (
-            expand_grid(
-                chain=np.arange(mcmc.num_chains),
-                iteration=np.arange(mcmc.num_samples // mcmc.thinning),
-                division=self.division_names,
-                lineage=self.lineage_names,
-            )
-            .with_columns(
-                beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
-                beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
-                sample_index=pl.col("iteration")
-                + pl.col("chain") * (mcmc.num_samples // mcmc.thinning)
-                + 1,
-            )
-            .drop("chain", "iteration")
+        parameter_samples = expand_grid(
+            chain=np.arange(mcmc.num_chains),
+            iteration=np.arange(mcmc.num_samples // mcmc.thinning),
+            division=self.division_names,
+            lineage=self.lineage_names,
+        ).with_columns(
+            beta_0=np.asarray(mcmc.get_samples()["beta_0"]).flatten(),
+            beta_1=np.asarray(mcmc.get_samples()["beta_1"]).flatten(),
+            sample_index=pl.col("iteration")
+            + pl.col("chain") * (mcmc.num_samples // mcmc.thinning)
+            + 1,
         )
 
         return ForecastFrame(
@@ -509,22 +501,16 @@ class BaselineModel(MultinomialModel):
         numpyro.sample("Y", likelihood, obs=self.counts)
 
     def create_forecasts(self, mcmc, fd_offsets) -> pl.DataFrame:
-        parameter_samples = (
-            expand_grid(
-                chain=np.arange(mcmc.num_chains),
-                iteration=np.arange(mcmc.num_samples // mcmc.thinning),
-                division=self.division_names,
-                lineage=self.lineage_names,
-            )
-            .with_columns(
-                logit_phi=np.asarray(
-                    mcmc.get_samples()["logit_phi"]
-                ).flatten(),
-                sample_index=pl.col("iteration")
-                + pl.col("chain") * (mcmc.num_samples // mcmc.thinning)
-                + 1,
-            )
-            .drop("chain", "iteration")
+        parameter_samples = expand_grid(
+            chain=np.arange(mcmc.num_chains),
+            iteration=np.arange(mcmc.num_samples // mcmc.thinning),
+            division=self.division_names,
+            lineage=self.lineage_names,
+        ).with_columns(
+            logit_phi=np.asarray(mcmc.get_samples()["logit_phi"]).flatten(),
+            sample_index=pl.col("iteration")
+            + pl.col("chain") * (mcmc.num_samples // mcmc.thinning)
+            + 1,
         )
 
         return ForecastFrame(

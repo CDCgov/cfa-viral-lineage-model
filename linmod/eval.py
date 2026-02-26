@@ -4,7 +4,7 @@ from numpy.typing import ArrayLike
 
 from linmod.data import CountsFrame
 from linmod.models import ForecastFrame
-from linmod.utils import pl_list_cycle, pl_norm
+from linmod.utils import pl_norm
 
 
 def optional_filter(df: pl.LazyFrame | pl.DataFrame, filters: dict | None):
@@ -29,14 +29,29 @@ def multinomial_count_sampler(
     rng: np.random.Generator,
 ) -> np.ndarray:
     """
-    Samples from a `multinomial(n, p)` distribution.
+    Samples from multinomial for multiple rows in one call.
 
-    Compatible shapes of `n` and `p` include:
-    - `n` is a scalar, `p` is a vector
-    - `n` is a vector, `p` is a matrix with rows corresponding to entries in `n`
+    n: 1-D array-like of total counts for each draw.
+    p: 2-D array-like where each row is a probability vector for that draw.
+    rng: a numpy.random.Generator used for reproducible sampling.
+
+    Returns an (n_rows, n_lineages) ndarray of integer counts.
     """
 
-    return rng.multinomial(n, p)
+    assert isinstance(n, np.ndarray)
+    assert isinstance(p, np.ndarray)
+
+    assert n.ndim == 1
+    assert p.ndim == 2
+
+    if p.shape[0] != n.shape[0]:
+        raise ValueError(
+            "Length of n must match number of probability vectors in p"
+        )
+
+    draws = rng.multinomial(n, p)
+
+    return draws
 
 
 class ProportionsEvaluator:
@@ -138,36 +153,43 @@ class CountsEvaluator:
             == data["lineage"].unique().sort()
         ).all()
 
-        rng = np.random.default_rng(seed)
+        cols = samples.collect_schema().names()
+        groups = ["date", "fd_offset", "division", "sample_index"] + (
+            ["chain", "iteration"]
+            if (("chain" in cols) and ("iteration" in cols))
+            else []
+        )
 
-        self.df = (
+        grouped = (
             data.join(
                 samples.rename({"phi": "phi_sampled"}),
                 on=("fd_offset", "division", "lineage"),
                 how="left",
             )
-            .group_by("date", "fd_offset", "division", "sample_index")
+            .group_by(groups)
             .agg(pl.col("lineage"), pl.col("phi_sampled"), pl.col("count"))
-            .with_columns(
-                count_sampled=pl.struct(
-                    pl.col("phi_sampled"), N=pl.col("count").list.sum()
-                ).map_elements(
-                    lambda struct: list(
-                        count_sampler(struct["N"], struct["phi_sampled"], rng)
-                    ),
-                    return_dtype=pl.List(pl.Int64),
-                )
-            )
-            .explode("lineage", "phi_sampled", "count", "count_sampled")
-            .drop("phi_sampled")
         )
 
-        assert (
-            self.df["fd_offset"].unique().sort()
-            == data["fd_offset"].unique().sort()
-        ).all()
+        # Sort deterministically for reproducible RNG draws
+        grouped = grouped.sort(by=groups)
 
-        self.df = self.df.lazy()
+        rng = np.random.default_rng(seed)
+
+        count_tots = np.sum(np.array(grouped["count"].to_list()), axis=1)
+
+        sampled_array = count_sampler(
+            count_tots, np.array(grouped["phi_sampled"].to_list()), rng
+        )
+
+        grouped = grouped.with_columns(count_sampled=pl.Series(sampled_array))
+
+        # Now explode to long format analogous to previous pipeline
+        df = grouped.explode(
+            "lineage", "phi_sampled", "count", "count_sampled"
+        ).drop("phi_sampled")
+
+        # Keep the rest of pipeline consistent with previous behaviour
+        self.df = df.lazy()
 
     def _uncovered_per_lineage_division_day(self, alpha=0.11):
         """
@@ -248,17 +270,56 @@ class CountsEvaluator:
         $E[ || \hat{Y}_{tg} - Y_{tg} ||_p ] - \frac{1}{2} E[ || \hat{Y}_{tg} - \hat{Y}_{tg}' ||_p ]$
 
         Returns a data frame with columns `(division, fd_offset, energy_score)`.
+
+        This function depends upon having multiple _independent_ MCMC chains, which
+        it uses as the "replicate" data Y' when computing the second expectation.
         """
+        cols = self.df.collect_schema().names()
+
+        assert (
+            "chain" in cols
+        ), "Cannot compute Energy Score without chain IDs."
+        assert (
+            "iteration" in cols
+        ), "Cannot compute Energy Score without within-chain iteration IDs."
+
+        chain_index = self.df.select("chain").collect()["chain"]
+        chains = sorted(chain_index.unique().to_list())
+        nchains_2 = len(chains) // 2
+        chains_left = chains[:nchains_2]
+        chains_right = chains[nchains_2 : (nchains_2 * 2)]
+        chain_rename = {
+            right: left for left, right in zip(chains_left, chains_right)
+        }
+
+        df = self.df.filter(pl.col("chain").is_in(chains_left)).join(
+            self.df.filter(pl.col("chain").is_in(chains_right))
+            .with_columns(
+                pl.col("count_sampled").alias("replicate"),
+                pl.col("chain").replace_strict(chain_rename),
+            )
+            .drop(["sample_index", "count", "count_sampled"]),
+            on=[
+                "date",
+                "fd_offset",
+                "division",
+                "lineage",
+                "chain",
+                "iteration",
+            ],
+            how="inner",
+            validate="1:1",
+        )
 
         return (
             # First, we will gather the values of count' we will use for (count-count')
-            self.df.group_by("date", "fd_offset", "division", "lineage")
+            df.group_by("date", "fd_offset", "division", "lineage")
             .agg(
                 pl.col("sample_index"),
                 pl.col("count"),
                 pl.col("count_sampled"),
+                pl.col("replicate"),
             )
-            .with_columns(replicate=pl_list_cycle(pl.col("count_sampled"), 1))
             .explode("sample_index", "count", "count_sampled", "replicate")
             # Now we can compute the score
             .group_by("fd_offset", "division", "sample_index")
