@@ -387,7 +387,7 @@ requires-dist = [
     { name = "mkdocs-material", specifier = ">=9.5.30,<10" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.25.2,<0.26" },
     { name = "numpy", specifier = ">=2.0.0,<3" },
-    { name = "numpyro", specifier = ">=0.15.0,<0.16" },
+    { name = "numpyro", specifier = "==0.15.0" },
     { name = "plotnine" },
     { name = "polars", specifier = ">=1.1.0,<2" },
     { name = "pyarrow", specifier = ">=17.0.0,<18" },
