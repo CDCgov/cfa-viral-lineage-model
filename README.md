@@ -1,6 +1,4 @@
-# cfa-viral-lineage-model
-
-⚠️ The work in this repository is experimental, though currently not under active development. ⚠️
+# CFA variant forecasting demo
 
 ## Overview
 
@@ -15,7 +13,7 @@ To run the evaluation: `cd retrospective-forecasting && uv run ./run_all.sh`.
 
 ## Documentation
 
-- [Documentation for linmnod](docs/) is best viewed with [mkdocs](https://www.mkdocs.org/). After cloning this repo, run `uv run mkdocs serve`.
+- See the [online docs](https://cdcgov.github.io/cfa-variant-forecasting/).
 - For use of the restrospective-forecasting pipeline, see [the README](retrospective-forecasting/README.md).
 
 ## Architecture
@@ -23,6 +21,8 @@ To run the evaluation: `cd retrospective-forecasting && uv run ./run_all.sh`.
 The model is provided with lightly-preprocessed data of variant sequences from humans in the USA, from [Nextstrain](https://docs.nextstrain.org/projects/ncov/en/latest/reference/remote_inputs.html) ([data dictionary](https://docs.nextstrain.org/projects/ncov/en/latest/reference/metadata-fields.html)). An Apache Parquet is provided, with columns `date`, `fd_offset`, `division`, `lineage`, `count`. Rows are uniquely identified by `(date, division, lineage)`. `date` and `fd_offset` can be computed from each other, given the forecast date.
 
 Note that `date` is the sample collection date. `fd` refers to the forecast date. `fd_offset` is `date - fd` measured in days. Sequences are filtered to have a collection date no later than the forecast date.
+
+Note also the this codebase uses `lineage` to refer to a modeling unit (i.e., a collection of sequences treated identically by the model).
 
 | date       | fd_offset | division     | lineage | count |
 | ---------- | --------- | ------------ | ------- | ----- |
@@ -37,6 +37,10 @@ The model must output samples of population-level lineage proportions. An Apache
 | -30       | Alabama  | 22B     | 1            | 0.000014979599 |
 | -30       | Alabama  | 22B     | 2            | 9.945703e-7    |
 | ...       | ...      | ...     | ...          | ...            |
+
+## Project admin
+
+Scott Olesen <ulp7@cdc.gov> (CDC/CFA)
 
 ## Disclaimers
 
