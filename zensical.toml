@@ -1,0 +1,81 @@
+[project]
+site_name = "CFA variant forecasting"
+site_url = "https://cdcgov.github.io/cfa-variant-forecasting"
+repo_url = "https://github.com/cdcgov/cfa-variant-forecasting"
+repo_name = "cfa-variant-forecasting"
+
+nav = ["index.md", "architecture.md", "notation.md", "api.md"]
+
+# provides for math rendering
+extra_javascript = ["https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"]
+
+[project.theme]
+language = "en"
+features = [
+    "announce.dismiss",
+    "content.tooltips",
+    "content.code.annotate",
+    "content.code.copy",
+    "content.code.select",
+    "content.footnote.tooltips",
+    "content.tabs.link",
+    "navigation.tabs",
+    "navigation.tabs.sticky",
+    "navigation.footer",
+    "navigation.indexes",
+    "navigation.instant",
+    "navigation.instant.prefetch",
+    "navigation.path",
+    "navigation.prune",
+    "navigation.sections",
+    "navigation.tracking",
+    "search.highlight",
+    "toc.follow",
+    "toc.integrate",
+]
+
+[project.markdown_extensions.toc]
+permalink = true
+
+[project.plugins.offline]
+
+[[project.theme.palette]]
+scheme = "slate"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+scheme = "default"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to dark mode"
+
+[project.markdown_extensions.pymdownx.arithmatex]
+generic = true
+
+[project.markdown_extensions.admonition]
+
+[project.markdown_extensions.pymdownx.details]
+
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+    { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
+
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+
+[project.markdown_extensions.mdx_truly_sane_lists]
+
+[project.plugins.mkdocstrings.handlers.python]
+inventories = ["https://docs.python.org/3/objects.inv"]
+paths = ["linmod"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "google"
+inherited_members = true
+show_source = false
