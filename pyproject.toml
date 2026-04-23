@@ -17,15 +17,18 @@ dependencies = [
     "zstandard>=0.22.0,<0.23",
     "plotnine",
     "pyarrow>=17.0.0,<18",
-    "mkdocs>=1.6.0,<2",
-    "mkdocstrings[python]>=0.25.2,<0.26",
-    "mkdocs-material>=9.5.30,<10",
-    "mdx-truly-sane-lists>=1.3,<2",
     "cladecombiner",
 ]
 
 [dependency-groups]
-dev = ["pre-commit>=4.5.1", "pytest>=8.2.2,<9"]
+dev = [
+    "mdx-truly-sane-lists>=1.3",
+    "mkdocstrings>=1.0.4",
+    "mkdocstrings-python>=2.0.3",
+    "pre-commit>=4.5.1",
+    "pytest>=8.2.2,<9",
+    "zensical>=0.0.35",
+]
 
 [tool.uv]
 
