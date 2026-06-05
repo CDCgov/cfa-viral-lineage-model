@@ -16,7 +16,7 @@ dependencies = [
     "scipy>=1.14.0,<2",
     "zstandard>=0.22.0,<0.23",
     "plotnine",
-    "pyarrow>=17.0.0,<18",
+    "pyarrow>=23.0.1,<24",
     "cladecombiner",
 ]
 
