@@ -13,8 +13,9 @@ To run the evaluation: `cd retrospective-forecasting && uv run ./run_all.sh`.
 
 ## Documentation
 
-- See the [online docs](https://cdcgov.github.io/cfa-variant-forecasting/).
-- For use of the restrospective-forecasting pipeline, see [the README](retrospective-forecasting/README.md).
+- Read the retrospective variant forecasting [white paper](https://stacks.cdc.gov/view/cdc/258069).
+- See the [online docs](https://cdcgov.github.io/cfa-variant-forecasting/) for this codebase.
+- For use of the restrospective forecasting pipeline, see [the README](retrospective-forecasting/README.md).
 
 ## Architecture
 
